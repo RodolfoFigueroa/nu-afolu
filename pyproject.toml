@@ -1,0 +1,48 @@
+[project]
+name = "nu-afolu"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "RodolfoFigueroa", email = "4rodolfofigueroa2@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "dagster-components",
+    "dagster-dg-cli>=1.13.2",
+    "dagster-webserver>=1.13.2",
+    "earthengine-api>=1.7.22",
+    "geopandas>=1.0.1",
+    "numpy>=2.2.2",
+    "pandas>=2.2.3",
+    "psycopg2>=2.9.12",
+    "pyarrow>=24.0.0",
+    "sisepuede",
+    "toml>=0.10.2",
+]
+
+[project.scripts]
+nu-afolu = "nu_afolu:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+sisepuede = { git = "https://github.com/jcsyme/sisepuede" }
+dagster-components = { git = "https://github.com/RodolfoFigueroa/dagster-components" }
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["D", "PLR0913", "COM812"]
+
+[tool.dg]
+directory_type = "project"
+
+[tool.dg.project]
+root_module = "nu_afolu"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.0",
+]

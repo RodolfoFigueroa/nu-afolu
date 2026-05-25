@@ -114,9 +114,11 @@ def class_mask_op_factory(
 
         for label_range in label_spec.ranges:
             if label_range[0] == label_range[1]:
-                temp_mask = glc30.eq(label_range[0])
+                temp_mask = glc30.eq(ee.Number(label_range[0]))
             else:
-                temp_mask = glc30.gte(label_range[0]).And(glc30.lte(label_range[1]))
+                temp_mask = glc30.gte(ee.Number(label_range[0])).And(
+                    glc30.lte(ee.Number(label_range[1]))
+                )
             mask = mask.Or(temp_mask)
 
         return mask
@@ -192,7 +194,7 @@ def get_pastures_mask(
     return grasslands_to_pastures_img.And(pastures_random_discriminator)
 
 
-@dg.op(out=dg.DynamicOut())
+@dg.op(out=dg.DynamicOut(dagster_type=int))
 def generate_years() -> Iterator[dg.DynamicOutput[int]]:
     for year in range(2000, 2022):
         yield dg.DynamicOutput(year, mapping_key=str(year))
@@ -386,11 +388,20 @@ def merge_area_tables(tables: list[pd.DataFrame]) -> pd.DataFrame:
     return out.sort_index().sort_index(axis=1)
 
 
+@dg.op(out=dg.Out(io_manager_key="earthengine_manager"))
+def stack_rasters_into_bands(rasters: list[ee.Image]) -> ee.Image:
+    return (
+        ee.ImageCollection(rasters)
+        .toBands()
+        .rename([str(i + 2000) for i in range(len(rasters))])
+    )
+
+
 @dg.graph_multi_asset(
     ins={
         "bbox": dg.AssetIn(["bbox", "ee"]),
     },
-    outs={"area_raster": dg.AssetOut(), "transition_cube": dg.AssetOut()},
+    outs={"area_raster": dg.AssetOut(), "transition_raster": dg.AssetOut()},
     partitions_def=zone_partitions,
     group_name="class_mask_graph",
 )
@@ -434,49 +445,53 @@ def foo(bbox: ee.Geometry) -> dict[str, pd.DataFrame]:
 
     wanted_years = generate_years()
 
-    years_mapped_to_transitions = wanted_years.map(
-        lambda year: generate_transition_raster(
-            year,
-            bbox=bbox,
-            transition_label_map=transition_label_map,
-            croplands_img=croplands,
-            flooded_img=flooded,
-            forests_mangroves_img=forests_mangroves,
-            forests_primary_img=forests_primary,
-            forests_secondary_img=forests_secondary,
-            grasslands_img=grasslands,
-            other_img=other,
-            pastures_img=pastures,
-            settlements_img=settlements,
-            shrublands_img=shrublands,
-            wetlands_img=wetlands,
+    transition_rasters = (
+        wanted_years.map(
+            lambda year: generate_transition_raster(
+                year,
+                bbox=bbox,
+                transition_label_map=transition_label_map,
+                croplands_img=croplands,
+                flooded_img=flooded,
+                forests_mangroves_img=forests_mangroves,
+                forests_primary_img=forests_primary,
+                forests_secondary_img=forests_secondary,
+                grasslands_img=grasslands,
+                other_img=other,
+                pastures_img=pastures,
+                settlements_img=settlements,
+                shrublands_img=shrublands,
+                wetlands_img=wetlands,
+            )
         )
-    ).map(
-        lambda raster: convert_raster_to_table(
-            raster, bbox=bbox, transition_label_map=transition_label_map
-        )
+        # .map(
+        #     lambda raster: convert_raster_to_table(
+        #         raster, bbox=bbox, transition_label_map=transition_label_map
+        #     )
+        # )
     )
 
-    years_mapped_to_areas = wanted_years.map(
-        lambda year: generate_area_raster(
-            year=year,
-            croplands_img=croplands,
-            flooded_img=flooded,
-            forests_mangroves_img=forests_mangroves,
-            forests_primary_img=forests_primary,
-            forests_secondary_img=forests_secondary,
-            grasslands_img=grasslands,
-            other_img=other,
-            pastures_img=pastures,
-            settlements_img=settlements,
-            shrublands_img=shrublands,
-            wetlands_img=wetlands,
+    area_rasters = (
+        wanted_years.map(
+            lambda year: generate_area_raster(
+                year=year,
+                croplands_img=croplands,
+                flooded_img=flooded,
+                forests_mangroves_img=forests_mangroves,
+                forests_primary_img=forests_primary,
+                forests_secondary_img=forests_secondary,
+                grasslands_img=grasslands,
+                other_img=other,
+                pastures_img=pastures,
+                settlements_img=settlements,
+                shrublands_img=shrublands,
+                wetlands_img=wetlands,
+            )
         )
-    ).map(lambda raster: reduce_area_raster_to_table(raster, bbox=bbox))
+        # .map(lambda raster: reduce_area_raster_to_table(raster, bbox=bbox))
+    )
 
     return {
-        "transition_cube": merge_transition_tables(
-            years_mapped_to_transitions.collect()
-        ),
-        "area_raster": merge_area_tables(years_mapped_to_areas.collect()),
+        "area_raster": stack_rasters_into_bands(area_rasters.collect()),
+        "transition_raster": stack_rasters_into_bands(transition_rasters.collect()),
     }

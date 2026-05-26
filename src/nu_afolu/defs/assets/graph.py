@@ -11,16 +11,32 @@ from nu_afolu.defs.resources import AFOLUClassMapResource, LabelResource
 from nu_afolu.utils import year_to_band_name
 
 
+def get_single_image_from_collection(col: ee.ImageCollection) -> ee.Image:
+    size = col.size().getInfo()
+
+    if not isinstance(size, int):
+        err = f"Expected int, got {type(size)}"
+        raise TypeError(err)
+    if size == 0:
+        err = "No images found in the specified bounding box."
+        raise ValueError(err)
+    if size > 1:
+        err = f"Expected 1 image, found {size} images in the specified bounding box."
+        raise ValueError(err)
+    return col.first()
+
+
 @dg.op
 def load_glc30(bbox: ee.geometry.Geometry) -> ee.image.Image:
-    return (
-        ee.imagecollection.ImageCollection(
-            "projects/sat-io/open-datasets/GLC-FCS30D/annual",
-        )
-        .filterBounds(bbox)
-        .mode()
-        .clip(bbox)
-    )
+    filtered = ee.imagecollection.ImageCollection(
+        "projects/sat-io/open-datasets/GLC-FCS30D/annual",
+    ).filterBounds(bbox)
+    return get_single_image_from_collection(filtered)
+
+
+@dg.op
+def get_native_projection(glc30: ee.image.Image) -> ee.projection.Projection:
+    return glc30.projection()
 
 
 @dg.op
@@ -44,23 +60,26 @@ def generate_transition_raster(
     start_year: int,
     bbox: ee.geometry.Geometry,
     transition_label_map: dict[str, list[str]],
-    croplands_img: ee.image.Image,
-    flooded_img: ee.image.Image,
-    forests_mangroves_img: ee.image.Image,
-    forests_primary_img: ee.image.Image,
-    forests_secondary_img: ee.image.Image,
-    grasslands_img: ee.image.Image,
-    other_img: ee.image.Image,
-    pastures_img: ee.image.Image,
-    settlements_img: ee.image.Image,
-    shrublands_img: ee.image.Image,
-    wetlands_img: ee.image.Image,
-) -> ee.image.Image:
+    croplands_img: ee.Image,
+    flooded_img: ee.Image,
+    forests_mangroves_img: ee.Image,
+    forests_primary_img: ee.Image,
+    forests_secondary_img: ee.Image,
+    grasslands_img: ee.Image,
+    other_img: ee.Image,
+    pastures_img: ee.Image,
+    settlements_img: ee.Image,
+    shrublands_img: ee.Image,
+    wetlands_img: ee.Image,
+) -> ee.Image:
     end_year = start_year + 1
     start_band = year_to_band_name(start_year)
     end_band = year_to_band_name(end_year)
 
-    masked = ee.image.Image.constant(0).rename("class").uint8().clip(bbox)
+    masked = (
+        ee.Image.constant(0).rename("class").uint8()
+        # .clip(bbox)
+    )
 
     img_map = {
         "croplands": croplands_img,
@@ -82,8 +101,8 @@ def generate_transition_raster(
 
     for start_label, start_img in img_map.items():
         for end_label, end_img in img_map.items():
-            a: ee.image.Image = start_img.select(start_band).rename("class")
-            b: ee.image.Image = end_img.select(end_band).rename("class")
+            a: ee.Image = start_img.select(start_band).rename("class")
+            b: ee.Image = end_img.select(end_band).rename("class")
 
             masked = masked.where(
                 a.And(b),
@@ -101,15 +120,14 @@ def class_mask_op_factory(
     )
     def _op(
         class_map_resource: AFOLUClassMapResource,
-        glc30: ee.image.Image,
-        bbox: ee.geometry.Geometry,
-    ) -> ee.image.Image:
+        glc30: ee.Image,
+        bbox: ee.Geometry,
+    ) -> ee.Image:
         label_spec: LabelResource = getattr(class_map_resource, class_name)
 
         mask = (
-            ee.image.Image.constant([0] * 23)
-            .rename([f"b{i}" for i in range(1, 24)])
-            .clip(bbox)
+            ee.Image.constant([0] * 23).rename([f"b{i}" for i in range(1, 24)])
+            # .clip(bbox)
         )
 
         for label_range in label_spec.ranges:
@@ -128,8 +146,8 @@ def class_mask_op_factory(
 
 @dg.op
 def generate_random_grasslands_to_pastures_discriminator(
-    bbox: ee.geometry.Geometry,
-    glc30: ee.image.Image,
+    bbox: ee.Geometry,
+    glc30: ee.Image,
 ) -> ee.Image:
     proj = glc30.projection().getInfo()
 
@@ -138,10 +156,10 @@ def generate_random_grasslands_to_pastures_discriminator(
         raise TypeError(err)
 
     return (
-        ee.image.Image.random(42)
+        ee.Image.random(42)
         .reproject(crs=proj["crs"], crsTransform=proj["transform"])
         .lte(ee.Number(0.4))
-        .clip(bbox)
+        # .clip(bbox)
     )
 
 
@@ -157,24 +175,24 @@ def merge_grasslands(
 
 
 @dg.op
-def get_forest_discriminator(bbox: ee.geometry.Geometry) -> ee.image.Image:
-    return (
-        ee.imagecollection.ImageCollection(
-            "NASA/ORNL/global_forest_classification_2020/V1",
-        )
-        .filterBounds(bbox)
-        .mode()
-        .clip(bbox)
-        .unmask(ee.Number(0))
-        .eq(ee.Number(1))
-    )
+def get_forest_discriminator(bbox: ee.Geometry) -> ee.Image:
+    filtered = ee.ImageCollection(
+        "NASA/ORNL/global_forest_classification_2020/V1",
+    ).filterBounds(bbox)
+    img = get_single_image_from_collection(filtered)
+    return img.unmask(ee.Number(0)).eq(ee.Number(1))
+    #     .mode()
+    #     .clip(bbox)
+    #     .unmask(ee.Number(0))
+    #     .eq(ee.Number(1))
+    # )
 
 
 @dg.op
 def get_forests_primary_mask(
-    forests_img: ee.image.Image,
+    forests_img: ee.Image,
     forests_discriminator: ee.Image,
-) -> ee.image.Image:
+) -> ee.Image:
     return forests_img.And(forests_discriminator)
 
 
@@ -182,15 +200,15 @@ def get_forests_primary_mask(
 def get_forests_secondary_mask(
     forests_img: ee.Image,
     forests_discriminator: ee.Image,
-) -> ee.image.Image:
+) -> ee.Image:
     return forests_img.And(forests_discriminator.Not())
 
 
 @dg.op
 def get_pastures_mask(
-    grasslands_to_pastures_img: ee.image.Image,
-    pastures_random_discriminator: ee.image.Image,
-) -> ee.image.Image:
+    grasslands_to_pastures_img: ee.Image,
+    pastures_random_discriminator: ee.Image,
+) -> ee.Image:
     return grasslands_to_pastures_img.And(pastures_random_discriminator)
 
 
@@ -202,18 +220,18 @@ def generate_years() -> Iterator[dg.DynamicOutput[int]]:
 
 @dg.op
 def convert_raster_to_table(
-    raster: ee.image.Image,
-    bbox: ee.geometry.Geometry,
+    raster: ee.Image,
+    bbox: ee.Geometry,
     transition_label_map: dict[str, list[str]],
 ) -> pd.DataFrame:
-    transition_img: ee.image.Image = raster.addBands(
-        ee.image.Image.pixelArea(),
+    transition_img: ee.Image = raster.addBands(
+        ee.Image.pixelArea(),
     ).select(
         ["area", "class"],
     )
 
     response = transition_img.reduceRegion(
-        reducer=(ee.reducer.Reducer.sum().group(groupField=1, groupName="transition")),
+        reducer=(ee.Reducer.sum().group(groupField=1, groupName="transition")),
         scale=30,
         geometry=bbox,
         maxPixels=int(1e10),
@@ -296,14 +314,14 @@ def generate_area_raster(
 @dg.op
 def reduce_area_raster_to_table(
     img: ee.image.Image,
-    bbox: ee.geometry.Geometry,
+    bbox: ee.Geometry,
 ) -> pd.DataFrame:
-    transition_img: ee.image.Image = img.addBands(ee.image.Image.pixelArea()).select(
+    transition_img: ee.Image = img.addBands(ee.Image.pixelArea()).select(
         ["area", "class"],
     )
 
     response = transition_img.reduceRegion(
-        reducer=(ee.reducer.Reducer.sum().group(groupField=1, groupName="transition")),
+        reducer=(ee.Reducer.sum().group(groupField=1, groupName="transition")),
         scale=30,
         geometry=bbox,
         maxPixels=int(1e10),
@@ -389,11 +407,16 @@ def merge_area_tables(tables: list[pd.DataFrame]) -> pd.DataFrame:
 
 
 @dg.op(out=dg.Out(io_manager_key="earthengine_manager"))
-def stack_rasters_into_bands(rasters: list[ee.Image]) -> ee.Image:
+def stack_rasters_into_bands(
+    rasters: list[ee.Image],
+    projection: ee.projection.Projection,
+) -> ee.Image:
+    print(projection.getInfo())
     return (
         ee.ImageCollection(rasters)
         .toBands()
         .rename([str(i + 2000) for i in range(len(rasters))])
+        .reproject(projection)
     )
 
 
@@ -407,6 +430,7 @@ def stack_rasters_into_bands(rasters: list[ee.Image]) -> ee.Image:
 )
 def foo(bbox: ee.Geometry) -> dict[str, pd.DataFrame]:
     glc30 = load_glc30(bbox)
+    native_proj = get_native_projection(glc30)
     transition_label_map = generate_transition_label_map()
 
     grasslands_base = class_mask_op_factory("grasslands")(glc30, bbox)
@@ -492,6 +516,8 @@ def foo(bbox: ee.Geometry) -> dict[str, pd.DataFrame]:
     )
 
     return {
-        "area_raster": stack_rasters_into_bands(area_rasters.collect()),
-        "transition_raster": stack_rasters_into_bands(transition_rasters.collect()),
+        "area_raster": stack_rasters_into_bands(area_rasters.collect(), native_proj),
+        "transition_raster": stack_rasters_into_bands(
+            transition_rasters.collect(), native_proj
+        ),
     }

@@ -46,6 +46,22 @@ def _():
     return
 
 
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## Provenance scope
+
+    This exploration notebook reuses the same baseline evidence as the calibration and transition notebooks. It does not introduce a new observed settlement source.
+
+    - Observed settlement is still the 2020 `settlements` class from the upstream GLC-FCS30D-derived `area_raster`; the expected historical decision window remains 2000 through 2020.
+    - Canonical calibration inputs are read from `OUT_PATH/chen/calibration.parquet` and `OUT_PATH/chen/scale_sensitivity.parquet`.
+    - New method-comparison artifacts are written under `OUT_PATH/chen/exploration/` only. They are exploratory diagnostics for stress-testing adequacy, not a replacement for the canonical calibration handoff.
+
+    The full provenance and artifact contract is documented in `docs/data_provenance.md`.
+    """)
+    return
+
+
 @app.cell
 def _():
     LABEL_MAP = dict(enumerate(LABEL_LIST, start=1))

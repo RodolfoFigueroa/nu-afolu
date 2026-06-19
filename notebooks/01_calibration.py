@@ -46,6 +46,23 @@ def _():
     return
 
 
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## Data provenance and review contract
+
+    Historical observations in this notebook come from the project's upstream GLC-FCS30D materialization, not from Chen and not from an external validation layer.
+
+    - Source collection: [GLC_FCS30D annual 30m land cover](https://gee-community-catalog.org/projects/glc_fcs/) in Earth Engine, loaded from `projects/sat-io/open-datasets/GLC-FCS30D/annual`. The expected historical decision window for this analysis is 2000 through 2020.
+    - Upstream processing: Dagster assets in `src/nu_afolu/defs/assets/graph.py` convert GLC-FCS30D class masks into per-zone `area_raster` and `transition_raster`; `src/nu_afolu/defs/assets/tables.py` reduces `area_raster` into `area_table`.
+    - Notebook baseline: `load_chen_manager` loads `area_raster`, `transition_raster`, and `area_table` from `OUT_PATH`. `SOURCE_YEAR = 2020`, so observed settlement means the 2020 `settlements` class from the GLC-FCS30D-derived `area_raster`.
+    - Expected result: `calibration.parquet` and `scale_sensitivity.parquet` are adequacy diagnostics and handoff artifacts. They are not carbon-model inputs.
+
+    The full provenance and artifact contract is documented in `docs/data_provenance.md`.
+    """)
+    return
+
+
 @app.cell
 def _():
     LABEL_MAP = dict(enumerate(LABEL_LIST, start=1))

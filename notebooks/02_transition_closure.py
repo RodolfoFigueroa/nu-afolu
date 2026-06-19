@@ -54,6 +54,23 @@ def _():
     return
 
 
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## Historical provenance and model-input gate
+
+    This notebook keeps Chen projections separate from observed land-use evidence.
+
+    - Observed historical land use comes from the GLC-FCS30D-derived `area_raster`, `transition_raster`, and `area_table` artifacts loaded by `load_chen_manager`.
+    - `SOURCE_YEAR = 2020`; future Chen expansion is allocated onto `zone.area_raster.select("2020")`, so every diagnostic `from_class -> settlements` row inherits its source class from the observed 2020 GLC-FCS30D-derived landscape.
+    - Historical growth screens use `manager.area_df` for 2000-2010, 2010-2020, and 2000-2020. Extra years in a materialized `area_table`, if present, are not part of the Chen readiness decision unless a later section explicitly uses them.
+    - Expected result: closure artifacts are diagnostic readiness and manual-review products. A future carbon-model input must be a separate approved subset, not `df_chen_transitions` by default.
+
+    The full provenance and artifact contract is documented in `docs/data_provenance.md`.
+    """)
+    return
+
+
 @app.cell
 def _():
     LABEL_MAP = dict(enumerate(LABEL_LIST, start=1))

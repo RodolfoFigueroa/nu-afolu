@@ -31,6 +31,13 @@ with app.setup:
         load_chen_manager,
     )
     from nu_afolu.constants import LABEL_LIST
+    from nu_afolu.transition_feasibility import (
+        CAPACITY_WATCH,
+        FEASIBLE,
+        INFEASIBLE,
+        build_source_availability_table,
+        build_transition_feasibility_table,
+    )
 
     ee.Initialize()
 
@@ -492,6 +499,60 @@ def _():
     return
 
 
+@app.cell
+def _():
+    mo.md(r"""
+    ## Transition feasibility screen
+
+    The transition tables are still diagnostic, but they now get a physical mass-balance check before being considered for manual-review readiness. For each zone, SSP, source class, and calibration type, this screen compares cumulative future settlement transitions against the observed 2020 source-class area. Calibrated rows may exceed the spatial Chen footprint because they apply the 2020 correction factor; if that scaling demands more area than a source class has available, the zone-scenario is not ready for model input.
+    """)
+    return
+
+
+@app.cell
+def _(SOURCE_CLASSES, SOURCE_YEAR, df_chen_transitions, manager):
+    df_source_availability = build_source_availability_table(
+        manager.area_df,
+        source_year=SOURCE_YEAR,
+        source_classes=SOURCE_CLASSES,
+    )
+    df_transition_feasibility = build_transition_feasibility_table(
+        df_chen_transitions,
+        df_source_availability,
+    )
+
+    _expected_feasibility_rows = len(manager.zones) * len(SSP_NAMES) * 2
+    assert df_transition_feasibility.shape[0] == _expected_feasibility_rows
+    assert set(df_transition_feasibility["calibration"]) == {"raw", "calibrated"}
+    assert df_transition_feasibility.loc[
+        df_transition_feasibility["calibration"].eq("raw"),
+        "transition_feasibility",
+    ].eq(FEASIBLE).all()
+
+    _feasibility_counts = pd.crosstab(
+        df_transition_feasibility["calibration"],
+        df_transition_feasibility["transition_feasibility"],
+    )
+    _calibrated_watchlist = (
+        df_transition_feasibility[df_transition_feasibility["calibration"].eq("calibrated")]
+        .sort_values(
+            ["total_overrun_area_m2", "max_capacity_ratio"],
+            ascending=[False, False],
+        )
+        .head(12)
+    )
+
+    mo.vstack(
+        [
+            mo.md("### Feasibility counts"),
+            _feasibility_counts,
+            mo.md("### Calibrated source-stock pressure"),
+            _calibrated_watchlist,
+        ]
+    )
+    return (df_transition_feasibility,)
+
+
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
@@ -934,7 +995,7 @@ def _(df_sensitive_transition_summary):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    ## Area, spatial, and readiness screens
+    ## Area, spatial, feasibility, and readiness screens
 
     The notebook reports separate diagnostic screens instead of collapsing the land estimates into a single pass/fail metric.
 
@@ -943,10 +1004,11 @@ def _():
     - `calibration_adequacy`: do Chen and observed 2020 settlements agree well enough in area and space?
     - `growth_risk`: does Chen's future expansion look too high relative to recent observed settlement growth?
     - `sensitive_class_risk`: is projected expansion drawing substantially from primary forests, mangroves, or wetlands?
+    - `transition_feasibility`: do cumulative future settlement transitions fit within the observed 2020 source-class stock?
     - `land_estimate_readiness`: the primary readiness label for deciding what should be reviewed next.
     - `manual_review_priority`: which cases deserve visual inspection first.
 
-    Low Chen growth is not treated as a failure. It can be a conservative or low-expansion SSP outcome. High and extreme growth remain review concerns.
+    Low Chen growth is not treated as a failure. It can be a conservative or low-expansion SSP outcome. High and extreme growth remain review concerns. Infeasible source-stock demand is a hard readiness gate because it would require more land from at least one source class than the 2020 landscape contains.
     """)
     return
 
@@ -957,6 +1019,7 @@ def _(
     df_calibration,
     df_growth_plausibility_summary,
     df_sensitive_flag_summary,
+    df_transition_feasibility,
     manager,
 ):
     SENSITIVE_AREA_RISK_THRESHOLD_M2 = 1_000_000
@@ -1016,8 +1079,12 @@ def _(
 
 
     def classify_land_estimate_readiness(row: pd.Series) -> str:
+        if row["transition_feasibility"] == INFEASIBLE:
+            return "not_ready"
         if row["calibration_adequacy"] == "poor" or row["growth_risk"] == "high" or row["sensitive_class_risk"] == "high":
             return "not_ready"
+        if row["transition_feasibility"] == CAPACITY_WATCH:
+            return "needs_targeted_review"
         if row["calibration_adequacy"] == "good" and row["growth_risk"] == "low" and row["sensitive_class_risk"] == "low":
             return "ready_for_manual_review"
         return "needs_targeted_review"
@@ -1026,6 +1093,8 @@ def _(
     def classify_manual_review_priority(row: pd.Series) -> str:
         if row["land_estimate_readiness"] == "not_ready":
             return "high"
+        if row["transition_feasibility"] == CAPACITY_WATCH:
+            return "medium"
         if row["growth_risk"] in {"watch", "review"} or row["sensitive_class_risk"] == "watch" or row["calibration_adequacy"] == "moderate":
             return "medium"
         return "low"
@@ -1046,11 +1115,34 @@ def _(
         return out
 
 
+    _calibrated_feasibility = (
+        df_transition_feasibility[df_transition_feasibility["calibration"].eq("calibrated")]
+        [
+            [
+                "zone",
+                "scenario",
+                "transition_feasibility",
+                "max_capacity_ratio",
+                "total_overrun_area_m2",
+                "overrun_source_classes",
+                "limiting_from_class",
+            ]
+        ]
+        .rename(
+            columns={
+                "max_capacity_ratio": "max_transition_capacity_ratio",
+                "total_overrun_area_m2": "total_transition_overrun_area_m2",
+                "limiting_from_class": "limiting_transition_source_class",
+            }
+        )
+    )
+
     df_zone_context = build_zone_context(manager)
     df_land_estimation_assessment = (
         df_calibration.merge(df_zone_context, on="zone", how="left")
         .merge(df_growth_plausibility_summary, on=["zone", "scenario"], how="left")
         .merge(df_sensitive_flag_summary, on=["zone", "scenario"], how="left")
+        .merge(_calibrated_feasibility, on=["zone", "scenario"], how="left")
     )
 
     df_land_estimation_assessment["area_adequacy"] = [
@@ -1104,10 +1196,19 @@ def _(
     assert set(df_land_estimation_assessment["calibration_adequacy"]).issubset({"good", "moderate", "poor"})
     assert set(df_land_estimation_assessment["growth_risk"]).issubset({"low", "watch", "high", "review"})
     assert set(df_land_estimation_assessment["sensitive_class_risk"]).issubset({"low", "watch", "high"})
+    assert set(df_land_estimation_assessment["transition_feasibility"]).issubset({FEASIBLE, CAPACITY_WATCH, INFEASIBLE})
     assert set(df_land_estimation_assessment["land_estimate_readiness"]).issubset(
         {"ready_for_manual_review", "needs_targeted_review", "not_ready"}
     )
     assert set(df_land_estimation_assessment["manual_review_priority"]).issubset({"low", "medium", "high"})
+    assert df_land_estimation_assessment.loc[
+        df_land_estimation_assessment["transition_feasibility"].eq(INFEASIBLE),
+        "land_estimate_readiness",
+    ].eq("not_ready").all()
+    assert not df_land_estimation_assessment.loc[
+        df_land_estimation_assessment["transition_feasibility"].eq(CAPACITY_WATCH),
+        "land_estimate_readiness",
+    ].eq("ready_for_manual_review").any()
 
     mo.vstack(
         [
@@ -1115,6 +1216,11 @@ def _(
             pd.crosstab(
                 df_land_estimation_assessment["scenario"],
                 df_land_estimation_assessment["land_estimate_readiness"],
+            ),
+            mo.md("### Transition feasibility gate"),
+            pd.crosstab(
+                df_land_estimation_assessment["scenario"],
+                df_land_estimation_assessment["transition_feasibility"],
             ),
             mo.md("### Review priority"),
             pd.crosstab(
@@ -1207,6 +1313,9 @@ def _(df_land_estimation_assessment):
     def build_review_candidates(df_assessment: pd.DataFrame) -> pd.DataFrame:
         base = df_assessment.copy()
         base["max_sensitive_share"] = base["max_sensitive_share"].fillna(0)
+        base["max_transition_capacity_ratio"] = base[
+            "max_transition_capacity_ratio"
+        ].fillna(0)
         selections = []
         for _scenario, group in base.groupby("scenario"):
             selections.append(group.nsmallest(3, "iou").assign(review_reason="lowest_iou"))
@@ -1221,6 +1330,7 @@ def _(df_land_estimation_assessment):
                     )
                 )
             selections.append(group.nlargest(3, "max_sensitive_share").assign(review_reason="largest_sensitive_share"))
+            selections.append(group.nlargest(3, "max_transition_capacity_ratio").assign(review_reason="highest_capacity_ratio"))
             for readiness in ["ready_for_manual_review", "needs_targeted_review", "not_ready"]:
                 readiness_group = group[group["land_estimate_readiness"].eq(readiness)]
                 if not readiness_group.empty:
@@ -1241,6 +1351,11 @@ def _(df_land_estimation_assessment):
                     "calibration_adequacy",
                     "growth_risk",
                     "sensitive_class_risk",
+                    "transition_feasibility",
+                    "max_transition_capacity_ratio",
+                    "total_transition_overrun_area_m2",
+                    "overrun_source_classes",
+                    "limiting_transition_source_class",
                     "reliability",
                     "area_adequacy",
                     "spatial_adequacy",
@@ -1286,12 +1401,17 @@ def _(
     df_chen_transitions,
     df_land_estimation_assessment,
     df_review_candidates,
+    df_transition_feasibility,
     manager,
 ):
     chen_artifact_dir.mkdir(parents=True, exist_ok=True)
     _artifacts = {
         "chen_expansion": (df_chen_expansion, chen_artifact_dir / "chen_expansion.parquet"),
         "chen_transitions": (df_chen_transitions, chen_artifact_dir / "chen_transitions.parquet"),
+        "transition_feasibility": (
+            df_transition_feasibility,
+            chen_artifact_dir / "transition_feasibility.parquet",
+        ),
         "land_estimation_assessment": (
             df_land_estimation_assessment,
             chen_artifact_dir / "land_estimation_assessment.parquet",
@@ -1306,6 +1426,7 @@ def _(
         df_calibration,
         df_chen_expansion,
         df_chen_transitions,
+        df_transition_feasibility,
         df_land_estimation_assessment,
         df_review_candidates,
         zone_names=manager.zones,

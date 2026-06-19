@@ -6,23 +6,29 @@ app = marimo.App(width="medium")
 with app.setup:
     import json
     import os
-    from collections import UserDict
-    from collections.abc import Callable, Iterator
-    from functools import cached_property
     from pathlib import Path
 
     import ee
-    import marimo as mo
     import ee.deserializer
     import leafmap.foliumap as leafmap
+    import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
     import pandas as pd
     import seaborn as sns
-    import xarray as xr
     from dagster_components.partitions import zone_partitions
 
+    from nu_afolu.chen import (
+        CHEN_COLLECTION_ID,
+        CHEN_URBAN_VALUE,
+        CHEN_YEARS,
+        GeoManager,
+        SSP_NAMES,
+        Zone,
+        chen_urban_mask,
+    )
     from nu_afolu.constants import LABEL_LIST
+    from nu_afolu.utils import safe_ratio
 
     ee.Initialize()
 
@@ -45,9 +51,7 @@ def _():
     LABEL_ID_BY_NAME = {label: idx for idx, label in LABEL_MAP.items()}
     SETTLEMENT_IDX = LABEL_ID_BY_NAME["settlements"]
 
-    SSP_NAMES = [f"SSP{suffix}" for suffix in range(1, 6)]
-    CHEN_YEARS = list(range(2020, 2101, 10))
-    FUTURE_YEARS = CHEN_YEARS[1:]
+    FUTURE_YEARS = list(CHEN_YEARS[1:])
     SOURCE_YEAR = 2020
     SOURCE_CLASSES = [label for label in LABEL_LIST if label != "settlements"]
 
@@ -65,14 +69,11 @@ def _():
         SETTLEMENT_IDX,
         SOURCE_CLASSES,
         SOURCE_YEAR,
-        SSP_NAMES,
     )
 
 
 @app.cell
 def _():
-    CHEN_URBAN_VALUE = 2
-
     HISTORICAL_GROWTH_PERIODS = [(2000, 2010), (2010, 2020), (2000, 2020)]
     RECENT_GROWTH_PERIOD = (2010, 2020)
     MIN_HISTORICAL_GROWTH_AREA_M2 = 1_000_000
@@ -81,7 +82,6 @@ def _():
     WATCH_CLASSES = ["forests_secondary"]
     SCALE_SENSITIVITY_THRESHOLDS = [0.10, 0.25, 0.50]
     return (
-        CHEN_URBAN_VALUE,
         HISTORICAL_GROWTH_PERIODS,
         MIN_HISTORICAL_GROWTH_AREA_M2,
         RECENT_GROWTH_PERIOD,
@@ -115,177 +115,8 @@ def _():
 
 @app.cell
 def _():
-    col_chen = ee.ImageCollection(
-        "projects/sat-io/open-datasets/FUTURE-URBAN-LAND/CHEN_2020_2100"
-    )
+    col_chen = ee.ImageCollection(CHEN_COLLECTION_ID)
     return (col_chen,)
-
-
-@app.cell
-def _(CHEN_URBAN_VALUE):
-    def reduce_ssp_col(
-        col: ee.ImageCollection, *, geometry: ee.Geometry, scale: float
-    ) -> pd.DataFrame:
-        reduced: ee.FeatureCollection = col.map(
-            lambda img: ee.Feature(
-                geometry,
-                img.eq(ee.Number(CHEN_URBAN_VALUE))
-                .multiply(ee.Image.pixelArea())
-                .reduceRegion(ee.Reducer.sum(), geometry=geometry, scale=scale),
-            )
-        )
-
-        collected: dict[str, list[float]] = {}
-        for suffix in range(1, 6):
-            property_name = f"SSP{suffix}"
-            arr = reduced.aggregate_array(property_name).getInfo()
-            if not isinstance(arr, list):
-                err = f"Expected list for property {property_name}, got {type(arr)}"
-                raise TypeError(err)
-            collected[property_name] = arr
-
-        return pd.DataFrame(collected, index=list(range(2020, 2101, 10)))
-
-    return (reduce_ssp_col,)
-
-
-@app.cell(hide_code=True)
-def _():
-    mo.md(r"""
-    # Manager classes
-    """)
-    return
-
-
-@app.cell
-def _(CHEN_URBAN_VALUE, SETTLEMENT_IDX, col_chen, reduce_ssp_col):
-    class Zone:
-        def __init__(
-            self,
-            bbox: ee.Geometry,
-            area_raster: ee.Image,
-            transition_raster: ee.Image,
-            area_df: pd.DataFrame,
-        ) -> None:
-            self._bbox: ee.Geometry = bbox
-            self.area_raster: ee.Image = area_raster
-            self.transition_raster: ee.Image = transition_raster
-            self.area_df: pd.DataFrame = area_df
-            self._fields_to_invalidate: list[str] = ["ssp_images", "area_chen"]
-
-        @property
-        def bbox(self) -> ee.Geometry:
-            return self._bbox
-
-        @bbox.setter
-        def bbox(self, value: ee.Geometry) -> None:
-            self._bbox = value
-            for field in self._fields_to_invalidate:
-                if field in self.__dict__:
-                    del self.__dict__[field]
-
-        @bbox.deleter
-        def bbox(self) -> None:
-            del self._bbox
-            for field in self._fields_to_invalidate:
-                if field in self.__dict__:
-                    del self.__dict__[field]
-
-        @cached_property
-        def ssp_images(self) -> dict[str, ee.Image]:
-            ssp_images: dict[str, ee.Image] = {}
-            for suffix in range(1, 6):
-                name = f"SSP{suffix}"
-                ssp_images[name] = (
-                    col_chen.select(name)
-                    .toBands()
-                    .rename([str(year) for year in range(2020, 2101, 10)])
-                    .eq(ee.Number(CHEN_URBAN_VALUE))
-                    .clip(self.bbox)
-                    .selfMask()
-                )
-            return ssp_images
-
-        @cached_property
-        def area_chen(self) -> pd.DataFrame:
-            return reduce_ssp_col(col_chen, geometry=self.bbox, scale=1000)
-
-        @cached_property
-        def settlement_mask(self) -> ee.Image:
-            return self.area_raster.eq(ee.Number(SETTLEMENT_IDX))
-
-        def resample_settlement_mask(self, ssp: str) -> ee.Image:
-            return self.settlement_mask.reduceResolution(
-                reducer=ee.Reducer.mean(), maxPixels=2048
-            ).reproject(self.ssp_images[ssp].projection())
-
-    class ObservableDict(UserDict):
-        def __init__(self, on_change: Callable, *args, **kwargs) -> None:
-            self._on_change = on_change
-            super().__init__(*args, **kwargs)
-
-        def __setitem__(self, key: str, item: Zone) -> None:
-            super().__setitem__(key, item)
-            self._on_change()
-
-        def __delitem__(self, key: str) -> None:
-            super().__delitem__(key)
-            self._on_change()
-
-
-    class GeoManager:
-        def __init__(self) -> None:
-            self._zones: ObservableDict = ObservableDict(self._invalidate)
-            self._area_df: pd.DataFrame | None = None
-            self._area_arr: xr.DataArray | None = None
-
-        def _invalidate(self) -> None:
-            self._area_df = None
-            self._area_arr = None
-
-        def __getitem__(self, key: str) -> Zone:
-            return self._zones[key]
-
-        def __setitem__(self, key: str, value: Zone) -> None:
-            self._zones[key] = value
-
-        def __delitem__(self, key: str) -> None:
-            del self._zones[key]
-
-        def __iter__(self) -> Iterator[tuple[str, Zone]]:
-            return iter(self._zones.items())
-
-        @property
-        def zones(self) -> ObservableDict[str, Zone]:
-            return self._zones
-
-        @property
-        def area_df(self) -> pd.DataFrame:
-            if self._area_df is None:
-                self._area_df = (
-                    pd.concat(
-                        [zone.area_df.assign(zone=key) for key, zone in self._zones.items()]
-                    )
-                    .reset_index(names="year")
-                    .assign(year=lambda df: df["year"].astype(int))
-                    .set_index(["zone", "year"])
-                )
-            return self._area_df
-
-        @property
-        def area_arr(self) -> xr.DataArray:
-            if self._area_arr is None:
-                out = self.area_df.rename_axis(columns="category").stack().to_xarray()
-                out.name = "area"
-                if not isinstance(out, xr.DataArray):
-                    err = (
-                        f"Expected area_arr to be an xarray.DataArray, but got {type(out)}"
-                    )
-                    raise TypeError(err)
-                self._area_arr = out
-            return self._area_arr
-
-    return GeoManager, Zone
 
 
 @app.cell(hide_code=True)
@@ -297,7 +128,7 @@ def _():
 
 
 @app.cell
-def _(GeoManager, Zone, out_path):
+def _(SETTLEMENT_IDX, col_chen, out_path):
     manager = GeoManager()
 
     for zone in zone_partitions.get_partition_keys():
@@ -326,6 +157,8 @@ def _(GeoManager, Zone, out_path):
             area_raster=area_raster,
             transition_raster=transition_raster,
             area_df=area_df,
+            chen_collection=col_chen,
+            settlement_idx=SETTLEMENT_IDX,
         )
 
     manager.area_df.head(5)
@@ -375,20 +208,11 @@ def _():
 @app.cell
 def _(
     CORRECTION_FACTOR_BOUNDS,
-    GeoManager,
     HIGH_IOU_THRESHOLD,
     MEDIUM_IOU_THRESHOLD,
     MIN_OBSERVED_SETTLEMENT_AREA_M2,
     SOURCE_YEAR,
-    SSP_NAMES,
-    Zone,
 ):
-    def safe_ratio(numerator: float, denominator: float) -> float:
-        if denominator == 0:
-            return np.nan
-        return float(numerator / denominator)
-
-
     def reliability_label(
         observed_area_m2: float,
         chen_area_m2: float,
@@ -404,10 +228,6 @@ def _(
         if iou >= MEDIUM_IOU_THRESHOLD:
             return "medium"
         return "low"
-
-
-    def chen_urban_mask(zone: Zone, scenario: str, year: int) -> ee.Image:
-        return zone.ssp_images[scenario].select(str(year)).unmask(0).rename("chen_urban")
 
 
     def observed_settlement_fraction_image(zone: Zone, scenario: str) -> ee.Image:
@@ -555,10 +375,8 @@ def _(
 
     return (
         build_calibration_table,
-        chen_urban_mask,
         observed_settlement_fraction_image,
         reliability_counts,
-        safe_ratio,
         summarize_calibration,
     )
 
@@ -748,16 +566,7 @@ def _():
 
 
 @app.cell
-def _(
-    FUTURE_YEARS,
-    GeoManager,
-    LABEL_MAP,
-    SOURCE_CLASSES,
-    SOURCE_YEAR,
-    SSP_NAMES,
-    Zone,
-    chen_urban_mask,
-):
+def _(FUTURE_YEARS, LABEL_MAP, SOURCE_CLASSES, SOURCE_YEAR):
     def first_expansion_year_image(zone: Zone, scenario: str) -> ee.Image:
         prior_urban = chen_urban_mask(zone, scenario, SOURCE_YEAR)
         first_year = ee.Image(0).rename("first_expansion_year").int16()
@@ -1133,7 +942,6 @@ def _():
 
 @app.cell
 def _(
-    GeoManager,
     HISTORICAL_GROWTH_PERIODS,
     MIN_HISTORICAL_GROWTH_AREA_M2,
     RECENT_GROWTH_PERIOD,
@@ -1490,7 +1298,6 @@ def _():
 
 @app.cell
 def _(
-    GeoManager,
     SOURCE_YEAR,
     df_calibration,
     df_growth_plausibility_summary,
@@ -1738,15 +1545,10 @@ def _():
 
 @app.cell
 def _(
-    GeoManager,
     SCALE_SENSITIVITY_THRESHOLDS,
     SOURCE_YEAR,
-    SSP_NAMES,
-    Zone,
-    chen_urban_mask,
     manager,
     observed_settlement_fraction_image,
-    safe_ratio,
 ):
     def threshold_label(threshold: float) -> str:
         return f"t{int(round(threshold * 100)):02d}"

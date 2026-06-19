@@ -1,4 +1,12 @@
+import math
+
 import shapely
+
+
+def safe_ratio(numerator: float, denominator: float) -> float:
+    if denominator == 0:
+        return math.nan
+    return float(numerator / denominator)
 
 
 def year_to_band_name(year: int | str) -> str:

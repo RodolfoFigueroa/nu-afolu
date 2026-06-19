@@ -14,6 +14,8 @@ dependencies = [
     "geemap>=0.37.2",
     "geopandas>=1.0.1",
     "ipykernel<7",
+    "leafmap>=0.62.0",
+    "marimo>=0.23.10",
     "numpy>=2.2.2",
     "pandas>=2.2.3",
     "psycopg2>=2.9.12",
@@ -32,7 +34,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.uv.sources]
-sisepuede = { git = "https://github.com/jcsyme/sisepuede" }
+sisepuede = { git = "https://github.com/RodolfoFigueroa/sisepuede" }
 dagster-components = { git = "https://github.com/RodolfoFigueroa/dagster-components" }
 
 [tool.ruff.lint]

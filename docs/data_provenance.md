@@ -32,6 +32,17 @@ The Chen notebooks use 2020 as the source/baseline year. Historical growth diagn
 
 Chen is treated as a coarse 1km urban/non-urban signal. It is not treated as a complete future land-use map and does not directly identify exact 30m future transitions.
 
+### External Built-Up Validation
+
+- Source: GHSL built-up surface grid, release P2023A.
+- Earth Engine asset used by `04_external_settlement_validation.py`: `JRC/GHSL/P2023A/GHS_BUILT_S`
+- Documentation: https://developers.google.com/earth-engine/datasets/catalog/JRC_GHSL_P2023A_GHS_BUILT_S
+- Analytical role: independent built-up evidence for Chen/GLC baseline agreement and near-term 2020-2030 growth plausibility.
+- Years used in the external-validation notebook: 2020 and 2030.
+- Band used: `built_surface`, expressed as built-up square metres per 100m grid cell.
+
+GHSL is not a replacement observed baseline and is not a long-range future scenario input. It is an external validation anchor. GHSL 2030 is treated as near-term plausibility evidence rather than observed truth because the product is spatially-temporally interpolated or extrapolated through 2030.
+
 ## Upstream Processing
 
 The upstream Dagster assets produce the observed historical artifacts consumed by the notebooks.
@@ -145,6 +156,36 @@ Interpretation:
 
 These outputs are exploratory. Promoting a method requires updating `01_calibration.py` and rerunning the closure and validation workflow.
 
+### `notebooks/04_external_settlement_validation.py`
+
+Question:
+
+Does independent built-up evidence support or undermine Chen's 2020 baseline and first-decade expansion signal?
+
+Inputs:
+
+- Validated closure artifacts from `02_transition_closure.py`.
+- Per-zone GLC-FCS30D-derived historical artifacts loaded from `OUT_PATH`.
+- GHSL built-up surface images for 2020 and 2030.
+
+Processing:
+
+- Sums GHSL 2020 built-up surface onto Chen's 1km grid.
+- Compares GHSL 2020 against the GLC-FCS30D-derived 2020 settlement baseline and Chen 2020 urban baseline.
+- Compares GHSL 2020-2030 built-up change against raw and calibrated Chen 2020-2030 expansion.
+- Joins external support/conflict labels to the existing transition-closure readiness context without modifying readiness labels.
+
+Expected outputs:
+
+- `OUT_PATH/chen/external_validation/external_baseline_agreement.parquet`
+- `OUT_PATH/chen/external_validation/external_growth_alignment.parquet`
+- `OUT_PATH/chen/external_validation/external_review_flags.parquet`
+- `OUT_PATH/chen/external_validation/external_validation_summary.parquet`
+
+Interpretation:
+
+These outputs are advisory validation products. They can guide manual review and method discussion, but they do not approve Chen-derived transitions for carbon-model input.
+
 ## Validation Code
 
 The test suite and validation helpers check software and artifact contracts. They do not by themselves prove that Chen is acceptable as model input.
@@ -161,11 +202,15 @@ The test suite and validation helpers check software and artifact contracts. The
 - `src/nu_afolu/metrics.py`
   - Shared calibration and agreement metric calculations.
 
+- `src/nu_afolu/external_validation.py`
+  - Shared external-validation label logic for GHSL support/conflict and advisory labels.
+
 Recommended local checks:
 
 ```powershell
 uv run python -m unittest discover
-uv run marimo check notebooks/01_calibration.py notebooks/02_transition_closure.py notebooks/03_method_exploration.py
+uv run pytest tests/test_artifact_validation.py tests/test_external_validation.py
+uv run marimo check notebooks/01_calibration.py notebooks/02_transition_closure.py notebooks/03_method_exploration.py notebooks/04_external_settlement_validation.py
 ```
 
 ## Review Rules

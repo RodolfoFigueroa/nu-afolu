@@ -4,12 +4,10 @@ __generated_with = "0.23.10"
 app = marimo.App(width="medium")
 
 with app.setup:
-    import json
     import os
     from pathlib import Path
 
     import ee
-    import ee.deserializer
     import leafmap.foliumap as leafmap
     import marimo as mo
     import matplotlib.pyplot as plt
@@ -25,9 +23,9 @@ with app.setup:
         SSP_NAMES,
         Zone,
         chen_urban_mask,
+        load_chen_manager,
     )
     from nu_afolu.constants import LABEL_LIST
-    from nu_afolu.utils import safe_ratio
 
     ee.Initialize()
 
@@ -109,38 +107,12 @@ def _():
 
 @app.cell
 def _(SETTLEMENT_IDX, col_chen, out_path):
-    manager = GeoManager()
-
-    for zone in zone_partitions.get_partition_keys():
-        try:
-            with (out_path / "bbox" / "ee" / f"{zone}.json").open() as f:
-                bbox: ee.Geometry = ee.deserializer.decode(json.load(f))
-
-            with (out_path / "area_raster" / f"{zone}.json").open() as f:
-                area_raster: ee.Image = ee.deserializer.decode(json.load(f)).clip(bbox)
-                area_raster = area_raster.updateMask(area_raster.neq(ee.Number(0)))
-
-            with (out_path / "transition_raster" / f"{zone}.json").open() as f:
-                transition_raster: ee.Image = ee.deserializer.decode(json.load(f)).clip(
-                    bbox
-                )
-                transition_raster = transition_raster.updateMask(
-                    transition_raster.neq(ee.Number(0))
-                )
-
-            area_df = pd.read_parquet(out_path / "area_table" / f"{zone}.parquet")
-        except FileNotFoundError:
-            continue
-
-        manager[zone] = Zone(
-            bbox=bbox,
-            area_raster=area_raster,
-            transition_raster=transition_raster,
-            area_df=area_df,
-            chen_collection=col_chen,
-            settlement_idx=SETTLEMENT_IDX,
-        )
-
+    manager, _missing_zones = load_chen_manager(
+        out_path,
+        zone_partitions.get_partition_keys(),
+        col_chen,
+        SETTLEMENT_IDX,
+    )
     manager.area_df.head(5)
     return (manager,)
 

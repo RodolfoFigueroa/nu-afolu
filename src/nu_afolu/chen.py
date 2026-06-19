@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from functools import cached_property
 from typing import TYPE_CHECKING
 
@@ -9,6 +10,7 @@ import xarray as xr
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
+    from pathlib import Path
 
 CHEN_COLLECTION_ID = "projects/sat-io/open-datasets/FUTURE-URBAN-LAND/CHEN_2020_2100"
 CHEN_URBAN_VALUE = 2
@@ -43,6 +45,11 @@ def reduce_ssp_col(
         collected[property_name] = arr
 
     return pd.DataFrame(collected, index=list(years))
+
+
+def _decode_ee_json(path: Path) -> ee.ComputedObject:
+    with path.open() as file:
+        return ee.deserializer.decode(json.load(file))
 
 
 class Zone:
@@ -194,3 +201,65 @@ class GeoManager:
 
 def chen_urban_mask(zone: Zone, scenario: str, year: int) -> ee.Image:
     return zone.ssp_images[scenario].select(str(year)).unmask(0).rename("chen_urban")
+
+
+def observed_settlement_fraction_image(
+    zone: Zone,
+    scenario: str,
+    source_year: int,
+) -> ee.Image:
+    chen_projection = zone.ssp_images[scenario].select(str(source_year)).projection()
+    return (
+        zone.settlement_mask.select(str(source_year))
+        .unmask(0)
+        .reduceResolution(reducer=ee.Reducer.mean(), maxPixels=2048)
+        .reproject(chen_projection)
+        .rename("observed_settlement_fraction")
+    )
+
+
+def load_chen_manager(
+    out_path: Path,
+    zone_names: Sequence[str],
+    chen_collection: ee.ImageCollection,
+    settlement_idx: int,
+) -> tuple[GeoManager, pd.DataFrame]:
+    manager = GeoManager()
+    missing_rows: list[dict[str, str]] = []
+
+    for zone_name in zone_names:
+        try:
+            bbox = _decode_ee_json(out_path / "bbox" / "ee" / f"{zone_name}.json")
+            area_raster = _decode_ee_json(
+                out_path / "area_raster" / f"{zone_name}.json",
+            )
+            transition_raster = _decode_ee_json(
+                out_path / "transition_raster" / f"{zone_name}.json",
+            )
+            area_df = pd.read_parquet(out_path / "area_table" / f"{zone_name}.parquet")
+        except FileNotFoundError as exc:
+            missing_rows.append({"zone": zone_name, "missing_path": str(exc.filename)})
+            continue
+
+        bbox = ee.Geometry(bbox)
+        area_raster = ee.Image(area_raster).clip(bbox)
+        area_raster = area_raster.updateMask(area_raster.neq(ee.Number(0)))
+        transition_raster = ee.Image(transition_raster).clip(bbox)
+        transition_raster = transition_raster.updateMask(
+            transition_raster.neq(ee.Number(0)),
+        )
+
+        manager[zone_name] = Zone(
+            bbox=bbox,
+            area_raster=area_raster,
+            transition_raster=transition_raster,
+            area_df=area_df,
+            chen_collection=chen_collection,
+            settlement_idx=settlement_idx,
+        )
+
+    if not manager.zones:
+        err = "No zones were loaded. Check OUT_PATH and upstream raster artifacts."
+        raise ValueError(err)
+
+    return manager, pd.DataFrame(missing_rows)

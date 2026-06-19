@@ -4,12 +4,10 @@ __generated_with = "0.23.10"
 app = marimo.App(width="medium")
 
 with app.setup:
-    import json
     import os
     from pathlib import Path
 
     import ee
-    import ee.deserializer
     import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
@@ -19,13 +17,15 @@ with app.setup:
 
     from nu_afolu.chen import (
         CHEN_COLLECTION_ID,
-        CHEN_YEARS,
         GeoManager,
         SSP_NAMES,
         Zone,
         chen_urban_mask,
+        load_chen_manager,
+        observed_settlement_fraction_image,
     )
     from nu_afolu.constants import LABEL_LIST
+    from nu_afolu.metrics import add_area_calibration_fields
     from nu_afolu.utils import safe_ratio
 
     ee.Initialize()
@@ -117,50 +117,12 @@ def _():
 
 @app.cell
 def _(SETTLEMENT_IDX, col_chen, out_path):
-    def _load_chen_manager(
-        out_path: Path,
-        col_chen: ee.ImageCollection,
-        settlement_idx: int,
-    ) -> tuple[GeoManager, pd.DataFrame]:
-        manager = GeoManager()
-        missing_rows: list[dict[str, str]] = []
-
-        for zone_name in zone_partitions.get_partition_keys():
-            try:
-                with (out_path / "bbox" / "ee" / f"{zone_name}.json").open() as file:
-                    bbox: ee.Geometry = ee.deserializer.decode(json.load(file))
-
-                with (out_path / "area_raster" / f"{zone_name}.json").open() as file:
-                    area_raster: ee.Image = ee.deserializer.decode(json.load(file)).clip(bbox)
-                    area_raster = area_raster.updateMask(area_raster.neq(ee.Number(0)))
-
-                with (out_path / "transition_raster" / f"{zone_name}.json").open() as file:
-                    transition_raster: ee.Image = ee.deserializer.decode(json.load(file)).clip(bbox)
-                    transition_raster = transition_raster.updateMask(
-                        transition_raster.neq(ee.Number(0))
-                    )
-
-                area_df = pd.read_parquet(out_path / "area_table" / f"{zone_name}.parquet")
-            except FileNotFoundError as exc:
-                missing_rows.append({"zone": zone_name, "missing_path": str(exc.filename)})
-                continue
-
-            manager[zone_name] = Zone(
-                bbox=bbox,
-                area_raster=area_raster,
-                transition_raster=transition_raster,
-                area_df=area_df,
-                chen_collection=col_chen,
-                settlement_idx=settlement_idx,
-            )
-
-        if not manager.zones:
-            raise ValueError("No zones were loaded. Check OUT_PATH and upstream raster artifacts.")
-
-        return manager, pd.DataFrame(missing_rows)
-
-
-    manager, df_missing_zones = _load_chen_manager(out_path, col_chen, SETTLEMENT_IDX)
+    manager, df_missing_zones = load_chen_manager(
+        out_path,
+        zone_partitions.get_partition_keys(),
+        col_chen,
+        SETTLEMENT_IDX,
+    )
 
     mo.vstack(
         [
@@ -294,31 +256,6 @@ def _(CORRECTION_FACTOR_BOUNDS, METHOD_COLUMNS):
         return f"threshold_{int(round(threshold * 100)):02d}"
 
 
-    def add_area_calibration_fields(df: pd.DataFrame) -> pd.DataFrame:
-        out = df.copy()
-        out["area_error_m2"] = out["chen_area_m2"] - out["observed_area_m2"]
-        out["area_bias"] = out["chen_area_m2"].div(
-            out["observed_area_m2"].replace(0, np.nan)
-        )
-        out["ape"] = out["area_error_m2"].abs().div(
-            out["observed_area_m2"].replace(0, np.nan)
-        )
-        out["correction_factor_raw"] = out["observed_area_m2"].div(
-            out["chen_area_m2"].replace(0, np.nan)
-        )
-        out["calibration_valid"] = (
-            out["observed_area_m2"].gt(0)
-            & out["chen_area_m2"].gt(0)
-            & np.isfinite(out["correction_factor_raw"])
-        )
-        out["correction_factor"] = np.where(
-            out["calibration_valid"],
-            np.clip(out["correction_factor_raw"], *CORRECTION_FACTOR_BOUNDS),
-            1.0,
-        )
-        return out
-
-
     def build_canonical_method_table(df: pd.DataFrame) -> pd.DataFrame:
         out = df.copy()
         out["method"] = "fractional_current"
@@ -336,7 +273,10 @@ def _(CORRECTION_FACTOR_BOUNDS, METHOD_COLUMNS):
 
 
     def build_threshold_method_table(df: pd.DataFrame) -> pd.DataFrame:
-        out = add_area_calibration_fields(df)
+        out = add_area_calibration_fields(
+            df,
+            correction_factor_bounds=CORRECTION_FACTOR_BOUNDS,
+        )
         out["method"] = out["threshold"].map(threshold_method_name)
         out["observed_threshold"] = out["threshold"]
         out["buffer_m"] = np.nan
@@ -350,8 +290,9 @@ def _(CORRECTION_FACTOR_BOUNDS, METHOD_COLUMNS):
         )
         return out[METHOD_COLUMNS]
 
+
+    threshold_method_name
     return (
-        add_area_calibration_fields,
         build_canonical_method_table,
         build_threshold_method_table,
         threshold_method_name,
@@ -406,22 +347,11 @@ def _():
 def _(
     BUFFER_DISTANCES_M,
     BUFFER_OBSERVED_THRESHOLD,
+    CORRECTION_FACTOR_BOUNDS,
     METHOD_COLUMNS,
     SOURCE_YEAR,
-    add_area_calibration_fields,
     threshold_method_name,
 ):
-    def observed_settlement_fraction_image(zone: Zone, scenario: str) -> ee.Image:
-        chen_projection = zone.ssp_images[scenario].select(str(SOURCE_YEAR)).projection()
-        return (
-            zone.settlement_mask.select(str(SOURCE_YEAR))
-            .unmask(0)
-            .reduceResolution(reducer=ee.Reducer.mean(), maxPixels=2048)
-            .reproject(chen_projection)
-            .rename("observed_settlement_fraction")
-        )
-
-
     def buffered_method_name(threshold: float, buffer_m: int) -> str:
         return f"{threshold_method_name(threshold)}_buffer_{int(buffer_m)}m"
 
@@ -479,7 +409,7 @@ def _(
             chen_projection = zone.ssp_images[scenario].select(str(SOURCE_YEAR)).projection()
             pixel_area = ee.Image.pixelArea().reproject(chen_projection)
             observed_mask = (
-                observed_settlement_fraction_image(zone, scenario)
+                observed_settlement_fraction_image(zone, scenario, SOURCE_YEAR)
                 .gte(ee.Number(BUFFER_OBSERVED_THRESHOLD))
                 .reproject(chen_projection)
                 .rename("observed_mask")
@@ -553,7 +483,10 @@ def _(
         for zone_name, zone in manager:
             rows.extend(buffered_method_rows_for_zone(zone_name, zone))
 
-        out = add_area_calibration_fields(pd.DataFrame(rows))
+        out = add_area_calibration_fields(
+            pd.DataFrame(rows),
+            correction_factor_bounds=CORRECTION_FACTOR_BOUNDS,
+        )
         threshold_baseline = df_threshold_methods[
             df_threshold_methods["method"].eq(threshold_method_name(BUFFER_OBSERVED_THRESHOLD))
         ][["zone", "scenario", "precision", "recall", "iou"]]

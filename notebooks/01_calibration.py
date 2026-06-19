@@ -4,13 +4,10 @@ __generated_with = "0.23.10"
 app = marimo.App(width="medium")
 
 with app.setup:
-    import json
     import os
     from pathlib import Path
 
     import ee
-    import ee.deserializer
-    import leafmap.foliumap as leafmap
     import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
@@ -20,15 +17,15 @@ with app.setup:
 
     from nu_afolu.chen import (
         CHEN_COLLECTION_ID,
-        CHEN_URBAN_VALUE,
-        CHEN_YEARS,
         GeoManager,
         SSP_NAMES,
         Zone,
         chen_urban_mask,
+        load_chen_manager,
+        observed_settlement_fraction_image,
     )
     from nu_afolu.constants import LABEL_LIST
-    from nu_afolu.utils import safe_ratio
+    from nu_afolu.metrics import agreement_metrics_from_areas
 
     ee.Initialize()
 
@@ -110,38 +107,12 @@ def _():
 
 @app.cell
 def _(SETTLEMENT_IDX, col_chen, out_path):
-    manager = GeoManager()
-
-    for zone in zone_partitions.get_partition_keys():
-        try:
-            with (out_path / "bbox" / "ee" / f"{zone}.json").open() as f:
-                bbox: ee.Geometry = ee.deserializer.decode(json.load(f))
-
-            with (out_path / "area_raster" / f"{zone}.json").open() as f:
-                area_raster: ee.Image = ee.deserializer.decode(json.load(f)).clip(bbox)
-                area_raster = area_raster.updateMask(area_raster.neq(ee.Number(0)))
-
-            with (out_path / "transition_raster" / f"{zone}.json").open() as f:
-                transition_raster: ee.Image = ee.deserializer.decode(json.load(f)).clip(
-                    bbox
-                )
-                transition_raster = transition_raster.updateMask(
-                    transition_raster.neq(ee.Number(0))
-                )
-
-            area_df = pd.read_parquet(out_path / "area_table" / f"{zone}.parquet")
-        except FileNotFoundError:
-            continue
-
-        manager[zone] = Zone(
-            bbox=bbox,
-            area_raster=area_raster,
-            transition_raster=transition_raster,
-            area_df=area_df,
-            chen_collection=col_chen,
-            settlement_idx=SETTLEMENT_IDX,
-        )
-
+    manager, _missing_zones = load_chen_manager(
+        out_path,
+        zone_partitions.get_partition_keys(),
+        col_chen,
+        SETTLEMENT_IDX,
+    )
     manager.area_df.head(5)
     return (manager,)
 
@@ -211,69 +182,29 @@ def _(
         return "low"
 
 
-    def observed_settlement_fraction_image(zone: Zone, scenario: str) -> ee.Image:
-        chen_projection = zone.ssp_images[scenario].select(str(SOURCE_YEAR)).projection()
-        return (
-            zone.settlement_mask.select(str(SOURCE_YEAR))
-            .unmask(0)
-            .reduceResolution(reducer=ee.Reducer.mean(), maxPixels=2048)
-            .reproject(chen_projection)
-            .rename("observed_settlement_fraction")
-        )
-
-
     def calibration_row_from_metrics(
         zone_name: str,
         scenario: str,
         metrics: dict[str, float],
     ) -> dict[str, object]:
-        observed_area_m2 = float(metrics.get(f"{scenario}_observed_area_m2") or 0)
-        chen_area_m2 = float(metrics.get(f"{scenario}_chen_area_m2") or 0)
-        tp_area_m2 = max(float(metrics.get(f"{scenario}_tp_area_m2") or 0), 0)
-        fp_area_m2 = max(float(metrics.get(f"{scenario}_fp_area_m2") or 0), 0)
-        fn_area_m2 = max(float(metrics.get(f"{scenario}_fn_area_m2") or 0), 0)
-
-        precision = safe_ratio(tp_area_m2, chen_area_m2)
-        recall = safe_ratio(tp_area_m2, observed_area_m2)
-        union_area_m2 = chen_area_m2 + observed_area_m2 - tp_area_m2
-        iou = safe_ratio(tp_area_m2, union_area_m2)
-        area_error_m2 = chen_area_m2 - observed_area_m2
-        area_bias = safe_ratio(chen_area_m2, observed_area_m2)
-        ape = safe_ratio(abs(area_error_m2), observed_area_m2)
-        correction_factor_raw = safe_ratio(observed_area_m2, chen_area_m2)
-        calibration_valid = bool(
-            observed_area_m2 > 0
-            and chen_area_m2 > 0
-            and np.isfinite(correction_factor_raw)
-        )
-        correction_factor = (
-            float(np.clip(correction_factor_raw, *CORRECTION_FACTOR_BOUNDS))
-            if calibration_valid
-            else 1.0
+        metric_values = agreement_metrics_from_areas(
+            observed_area_m2=float(metrics.get(f"{scenario}_observed_area_m2") or 0),
+            chen_area_m2=float(metrics.get(f"{scenario}_chen_area_m2") or 0),
+            tp_area_m2=float(metrics.get(f"{scenario}_tp_area_m2") or 0),
+            fp_area_m2=float(metrics.get(f"{scenario}_fp_area_m2") or 0),
+            fn_area_m2=float(metrics.get(f"{scenario}_fn_area_m2") or 0),
+            correction_factor_bounds=CORRECTION_FACTOR_BOUNDS,
         )
 
         return {
             "zone": zone_name,
             "scenario": scenario,
-            "observed_area_m2": observed_area_m2,
-            "chen_area_m2": chen_area_m2,
-            "area_error_m2": area_error_m2,
-            "area_bias": area_bias,
-            "ape": ape,
-            "tp_area_m2": tp_area_m2,
-            "fp_area_m2": fp_area_m2,
-            "fn_area_m2": fn_area_m2,
-            "precision": precision,
-            "recall": recall,
-            "iou": iou,
-            "correction_factor_raw": correction_factor_raw,
-            "correction_factor": correction_factor,
-            "calibration_valid": calibration_valid,
+            **metric_values,
             "reliability": reliability_label(
-                observed_area_m2,
-                chen_area_m2,
-                area_bias,
-                iou,
+                float(metric_values["observed_area_m2"]),
+                float(metric_values["chen_area_m2"]),
+                float(metric_values["area_bias"]),
+                float(metric_values["iou"]),
             ),
         }
 
@@ -283,7 +214,11 @@ def _(
         for scenario in SSP_NAMES:
             chen_projection = zone.ssp_images[scenario].select(str(SOURCE_YEAR)).projection()
             pixel_area = ee.Image.pixelArea().reproject(chen_projection)
-            observed_fraction = observed_settlement_fraction_image(zone, scenario)
+            observed_fraction = observed_settlement_fraction_image(
+                zone,
+                scenario,
+                SOURCE_YEAR,
+            )
             chen_mask = chen_urban_mask(zone, scenario, SOURCE_YEAR).reproject(
                 chen_projection
             )
@@ -354,12 +289,7 @@ def _(
             fill_value=0,
         )
 
-    return (
-        build_calibration_table,
-        observed_settlement_fraction_image,
-        reliability_counts,
-        summarize_calibration,
-    )
+    return build_calibration_table, reliability_counts, summarize_calibration
 
 
 @app.cell(hide_code=True)
@@ -523,12 +453,7 @@ def _():
 
 
 @app.cell
-def _(
-    SCALE_SENSITIVITY_THRESHOLDS,
-    SOURCE_YEAR,
-    manager,
-    observed_settlement_fraction_image,
-):
+def _(SCALE_SENSITIVITY_THRESHOLDS, SOURCE_YEAR, manager):
     def threshold_label(threshold: float) -> str:
         return f"t{int(round(threshold * 100)):02d}"
 
@@ -540,25 +465,26 @@ def _(
         metrics: dict[str, float],
     ) -> dict[str, object]:
         label = threshold_label(threshold)
-        observed_area_m2 = float(metrics.get(f"{scenario}_{label}_observed_area_m2") or 0)
-        chen_area_m2 = float(metrics.get(f"{scenario}_{label}_chen_area_m2") or 0)
-        tp_area_m2 = max(float(metrics.get(f"{scenario}_{label}_tp_area_m2") or 0), 0)
-        fp_area_m2 = max(float(metrics.get(f"{scenario}_{label}_fp_area_m2") or 0), 0)
-        fn_area_m2 = max(float(metrics.get(f"{scenario}_{label}_fn_area_m2") or 0), 0)
-        union_area_m2 = chen_area_m2 + observed_area_m2 - tp_area_m2
+        metric_values = agreement_metrics_from_areas(
+            observed_area_m2=float(metrics.get(f"{scenario}_{label}_observed_area_m2") or 0),
+            chen_area_m2=float(metrics.get(f"{scenario}_{label}_chen_area_m2") or 0),
+            tp_area_m2=float(metrics.get(f"{scenario}_{label}_tp_area_m2") or 0),
+            fp_area_m2=float(metrics.get(f"{scenario}_{label}_fp_area_m2") or 0),
+            fn_area_m2=float(metrics.get(f"{scenario}_{label}_fn_area_m2") or 0),
+        )
         return {
             "zone": zone_name,
             "scenario": scenario,
             "threshold": threshold,
-            "observed_area_m2": observed_area_m2,
-            "chen_area_m2": chen_area_m2,
-            "tp_area_m2": tp_area_m2,
-            "fp_area_m2": fp_area_m2,
-            "fn_area_m2": fn_area_m2,
-            "precision": safe_ratio(tp_area_m2, chen_area_m2),
-            "recall": safe_ratio(tp_area_m2, observed_area_m2),
-            "iou": safe_ratio(tp_area_m2, union_area_m2),
-            "area_bias": safe_ratio(chen_area_m2, observed_area_m2),
+            "observed_area_m2": metric_values["observed_area_m2"],
+            "chen_area_m2": metric_values["chen_area_m2"],
+            "tp_area_m2": metric_values["tp_area_m2"],
+            "fp_area_m2": metric_values["fp_area_m2"],
+            "fn_area_m2": metric_values["fn_area_m2"],
+            "precision": metric_values["precision"],
+            "recall": metric_values["recall"],
+            "iou": metric_values["iou"],
+            "area_bias": metric_values["area_bias"],
         }
 
 
@@ -567,7 +493,11 @@ def _(
         for scenario in SSP_NAMES:
             chen_projection = zone.ssp_images[scenario].select(str(SOURCE_YEAR)).projection()
             pixel_area = ee.Image.pixelArea().reproject(chen_projection)
-            observed_fraction = observed_settlement_fraction_image(zone, scenario)
+            observed_fraction = observed_settlement_fraction_image(
+                zone,
+                scenario,
+                SOURCE_YEAR,
+            )
             chen_mask = chen_urban_mask(zone, scenario, SOURCE_YEAR).reproject(chen_projection)
             for threshold in SCALE_SENSITIVITY_THRESHOLDS:
                 label = threshold_label(threshold)

@@ -40,7 +40,7 @@ def _():
 
     This notebook evaluates Chen's SSP urban-land projections against the project's observed 2020 settlement layer. It calibrates Chen's 2020 urban baseline, checks sensitivity to observed-settlement thresholds, and writes calibration artifacts for the downstream transition-closure notebook.
 
-    The historical pipeline estimates full year-to-year transitions from 30m GLC-FCS30D classes. Chen is coarser and only forecasts urban expansion, so transition construction and readiness screening now live in `transition_closure.py`.
+    The historical pipeline estimates full year-to-year transitions from 30m GLC-FCS30D classes. Chen is coarser and only forecasts urban expansion, so transition construction and readiness screening now live in `02_transition_closure.py`.
     """)
     return
 
@@ -679,7 +679,7 @@ def _():
     mo.md(r"""
     ## Handoff to transition closure
 
-    This notebook stops at calibration and scale-sensitivity diagnostics. The persisted calibration table at `OUT_PATH/chen/calibration.parquet` is the handoff to `transition_closure.py`, which builds diagnostic future settlement transitions, readiness screens, and review candidates.
+    This notebook stops at calibration and scale-sensitivity diagnostics. The persisted calibration table at `OUT_PATH/chen/calibration.parquet` is the handoff to `02_transition_closure.py`, which builds diagnostic future settlement transitions, readiness screens, and review candidates.
     """)
     return
 

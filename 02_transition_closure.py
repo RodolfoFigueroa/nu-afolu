@@ -37,7 +37,7 @@ def _():
     mo.md(r"""
     # Chen SSP Transition Closure
 
-    This notebook consumes the Chen calibration artifacts produced by `analysis.py` and closes the diagnostic transition workflow. It builds future `source class -> settlements` transition tables, screens the results for growth plausibility and sensitive source classes, and prepares review candidates.
+    This notebook consumes the Chen calibration artifacts produced by `01_calibration.py` and closes the diagnostic transition workflow. It builds future `source class -> settlements` transition tables, screens the results for growth plausibility and sensitive source classes, and prepares review candidates.
 
     The outputs remain diagnostic. They are not approved carbon-model inputs until manual review or a later acceptance step explicitly promotes them.
     """)
@@ -102,7 +102,7 @@ def _():
     mo.md(r"""
     ## Load raster data
 
-    The transition closure notebook reloads the same zone bounding boxes, historical area rasters, transition rasters, and area tables as the calibration notebook. It does not depend on live variables from `analysis.py`.
+    The transition closure notebook reloads the same zone bounding boxes, historical area rasters, transition rasters, and area tables as the calibration notebook. It does not depend on live variables from `01_calibration.py`.
     """)
     return
 
@@ -150,7 +150,7 @@ def _():
     mo.md(r"""
     ## Load calibration artifacts
 
-    `analysis.py` owns Chen's 2020 baseline calibration and writes the table consumed here. This notebook treats that table as an explicit handoff artifact rather than sharing marimo kernel state.
+    `01_calibration.py` owns Chen's 2020 baseline calibration and writes the table consumed here. This notebook treats that table as an explicit handoff artifact rather than sharing marimo kernel state.
     """)
     return
 
@@ -160,7 +160,7 @@ def _(chen_artifact_dir, manager):
     _calibration_path = chen_artifact_dir / "calibration.parquet"
     if not _calibration_path.exists():
         raise FileNotFoundError(
-            f"Missing calibration artifact: {_calibration_path}. Run analysis.py first."
+            f"Missing calibration artifact: {_calibration_path}. Run 01_calibration.py first."
         )
 
     df_calibration = pd.read_parquet(_calibration_path)

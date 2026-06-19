@@ -22,11 +22,11 @@ with app.setup:
     )
     from nu_afolu.chen import (
         CHEN_COLLECTION_ID,
-        GeoManager,
+        ChenAnalysisZoneCollection,
         SSP_NAMES,
-        Zone,
+        ChenAnalysisZone,
         chen_urban_mask,
-        load_chen_manager,
+        load_chen_analysis_zones,
         observed_settlement_fraction_image,
     )
     from nu_afolu.constants import LABEL_LIST
@@ -138,7 +138,7 @@ def _():
 
 @app.cell
 def _(SETTLEMENT_IDX, col_chen, out_path):
-    manager, df_missing_zones = load_chen_manager(
+    manager, df_missing_zones = load_chen_analysis_zones(
         out_path,
         zone_partitions.get_partition_keys(),
         col_chen,
@@ -397,12 +397,12 @@ def _(
 
     def buffered_method_rows_for_zone(
         zone_name: str,
-        zone: Zone,
+        zone: ChenAnalysisZone,
     ) -> list[dict[str, object]]:
         metric_images: list[ee.Image] = []
 
         for scenario in SSP_NAMES:
-            chen_projection = zone.ssp_images[scenario].select(str(SOURCE_YEAR)).projection()
+            chen_projection = zone.chen_urban_masks_by_scenario[scenario].select(str(SOURCE_YEAR)).projection()
             pixel_area = ee.Image.pixelArea().reproject(chen_projection)
             observed_mask = (
                 observed_settlement_fraction_image(zone, scenario, SOURCE_YEAR)
@@ -472,7 +472,7 @@ def _(
 
 
     def build_buffered_method_table(
-        manager: GeoManager,
+        manager: ChenAnalysisZoneCollection,
         df_threshold_methods: pd.DataFrame,
     ) -> pd.DataFrame:
         rows: list[dict[str, object]] = []

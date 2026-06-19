@@ -21,11 +21,11 @@ with app.setup:
     )
     from nu_afolu.chen import (
         CHEN_COLLECTION_ID,
-        GeoManager,
+        ChenAnalysisZoneCollection,
         SSP_NAMES,
-        Zone,
+        ChenAnalysisZone,
         chen_urban_mask,
-        load_chen_manager,
+        load_chen_analysis_zones,
         observed_settlement_fraction_image,
     )
     from nu_afolu.constants import LABEL_LIST
@@ -55,7 +55,7 @@ def _():
 
     - Source collection: [GLC_FCS30D annual 30m land cover](https://gee-community-catalog.org/projects/glc_fcs/) in Earth Engine, loaded from `projects/sat-io/open-datasets/GLC-FCS30D/annual`. The expected historical decision window for this analysis is 2000 through 2020.
     - Upstream processing: Dagster assets in `src/nu_afolu/defs/assets/graph.py` convert GLC-FCS30D class masks into per-zone `area_raster` and `transition_raster`; `src/nu_afolu/defs/assets/tables.py` reduces `area_raster` into `area_table`.
-    - Notebook baseline: `load_chen_manager` loads `area_raster`, `transition_raster`, and `area_table` from `OUT_PATH`. `SOURCE_YEAR = 2020`, so observed settlement means the 2020 `settlements` class from the GLC-FCS30D-derived `area_raster`.
+    - Notebook baseline: `load_chen_analysis_zones` loads `area_raster`, `transition_raster`, and `area_table` from `OUT_PATH`. `SOURCE_YEAR = 2020`, so observed settlement means the 2020 `settlements` class from the GLC-FCS30D-derived `area_raster`.
     - Expected result: `calibration.parquet` and `scale_sensitivity.parquet` are adequacy diagnostics and handoff artifacts. They are not carbon-model inputs.
 
     The full provenance and artifact contract is documented in `docs/data_provenance.md`.
@@ -128,7 +128,7 @@ def _():
 
 @app.cell
 def _(SETTLEMENT_IDX, col_chen, out_path):
-    manager, _missing_zones = load_chen_manager(
+    manager, _missing_zones = load_chen_analysis_zones(
         out_path,
         zone_partitions.get_partition_keys(),
         col_chen,
@@ -230,10 +230,10 @@ def _(
         }
 
 
-    def calibrate_zone(zone_name: str, zone: Zone) -> list[dict[str, object]]:
+    def calibrate_zone(zone_name: str, zone: ChenAnalysisZone) -> list[dict[str, object]]:
         metric_images: list[ee.Image] = []
         for scenario in SSP_NAMES:
-            chen_projection = zone.ssp_images[scenario].select(str(SOURCE_YEAR)).projection()
+            chen_projection = zone.chen_urban_masks_by_scenario[scenario].select(str(SOURCE_YEAR)).projection()
             pixel_area = ee.Image.pixelArea().reproject(chen_projection)
             observed_fraction = observed_settlement_fraction_image(
                 zone,
@@ -269,12 +269,12 @@ def _(
         return [calibration_row_from_metrics(zone_name, scenario, metrics) for scenario in SSP_NAMES]
 
 
-    def calibrate_zone_scenario(zone_name: str, zone: Zone, scenario: str) -> dict[str, object]:
+    def calibrate_zone_scenario(zone_name: str, zone: ChenAnalysisZone, scenario: str) -> dict[str, object]:
         rows = calibrate_zone(zone_name, zone)
         return next(row for row in rows if row["scenario"] == scenario)
 
 
-    def build_calibration_table(manager: GeoManager) -> pd.DataFrame:
+    def build_calibration_table(manager: ChenAnalysisZoneCollection) -> pd.DataFrame:
         rows: list[dict[str, object]] = []
         for zone_name, zone in manager:
             rows.extend(calibrate_zone(zone_name, zone))
@@ -509,10 +509,10 @@ def _(SCALE_SENSITIVITY_THRESHOLDS, SOURCE_YEAR, manager):
         }
 
 
-    def scale_sensitivity_rows_for_zone(zone_name: str, zone: Zone) -> list[dict[str, object]]:
+    def scale_sensitivity_rows_for_zone(zone_name: str, zone: ChenAnalysisZone) -> list[dict[str, object]]:
         metric_images: list[ee.Image] = []
         for scenario in SSP_NAMES:
-            chen_projection = zone.ssp_images[scenario].select(str(SOURCE_YEAR)).projection()
+            chen_projection = zone.chen_urban_masks_by_scenario[scenario].select(str(SOURCE_YEAR)).projection()
             pixel_area = ee.Image.pixelArea().reproject(chen_projection)
             observed_fraction = observed_settlement_fraction_image(
                 zone,
@@ -548,7 +548,7 @@ def _(SCALE_SENSITIVITY_THRESHOLDS, SOURCE_YEAR, manager):
         return rows
 
 
-    def build_scale_sensitivity_table(manager: GeoManager) -> pd.DataFrame:
+    def build_scale_sensitivity_table(manager: ChenAnalysisZoneCollection) -> pd.DataFrame:
         rows: list[dict[str, object]] = []
         for zone_name, zone in manager:
             rows.extend(scale_sensitivity_rows_for_zone(zone_name, zone))

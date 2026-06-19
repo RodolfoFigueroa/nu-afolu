@@ -15,7 +15,7 @@ from nu_afolu.utils import get_largest_geometry
     group_name="bbox",
     tags={"partitions": "zone"},
 )
-def zones(
+def zone_bbox_shapely(
     context: dg.AssetExecutionContext, postgres_resource: PostgresResource
 ) -> gpd.GeoDataFrame:
     with postgres_resource.connect() as conn:
@@ -50,7 +50,7 @@ def zones(
     io_manager_key="earthengine_manager",
     group_name="bbox",
 )
-def _asset(df_bbox: gpd.GeoDataFrame) -> ee.geometry.Geometry:
+def zone_bbox_ee(df_bbox: gpd.GeoDataFrame) -> ee.geometry.Geometry:
     bbox_shapely = df_bbox["geometry"].item()
 
     if not isinstance(bbox_shapely, shapely.Polygon):

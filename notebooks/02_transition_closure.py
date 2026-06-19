@@ -24,11 +24,11 @@ with app.setup:
     from nu_afolu.chen import (
         CHEN_COLLECTION_ID,
         CHEN_YEARS,
-        GeoManager,
+        ChenAnalysisZoneCollection,
         SSP_NAMES,
-        Zone,
+        ChenAnalysisZone,
         chen_urban_mask,
-        load_chen_manager,
+        load_chen_analysis_zones,
     )
     from nu_afolu.constants import LABEL_LIST
     from nu_afolu.transition_feasibility import (
@@ -61,7 +61,7 @@ def _():
 
     This notebook keeps Chen projections separate from observed land-use evidence.
 
-    - Observed historical land use comes from the GLC-FCS30D-derived `area_raster`, `transition_raster`, and `area_table` artifacts loaded by `load_chen_manager`.
+    - Observed historical land use comes from the GLC-FCS30D-derived `area_raster`, `transition_raster`, and `area_table` artifacts loaded by `load_chen_analysis_zones`.
     - `SOURCE_YEAR = 2020`; future Chen expansion is allocated onto `zone.area_raster.select("2020")`, so every diagnostic `from_class -> settlements` row inherits its source class from the observed 2020 GLC-FCS30D-derived landscape.
     - Historical growth screens use `manager.area_df` for 2000-2010, 2010-2020, and 2000-2020. Extra years in a materialized `area_table`, if present, are not part of the Chen readiness decision unless a later section explicitly uses them.
     - Expected result: closure artifacts are diagnostic readiness and manual-review products. A future carbon-model input must be a separate approved subset, not `df_chen_transitions` by default.
@@ -136,7 +136,7 @@ def _():
 
 @app.cell
 def _(SETTLEMENT_IDX, col_chen, out_path):
-    manager, _missing_zones = load_chen_manager(
+    manager, _missing_zones = load_chen_analysis_zones(
         out_path,
         zone_partitions.get_partition_keys(),
         col_chen,
@@ -246,7 +246,7 @@ def _():
 
 @app.cell
 def _(FUTURE_YEARS, LABEL_MAP, SOURCE_CLASSES, SOURCE_YEAR):
-    def first_expansion_year_image(zone: Zone, scenario: str) -> ee.Image:
+    def first_expansion_year_image(zone: ChenAnalysisZone, scenario: str) -> ee.Image:
         prior_urban = chen_urban_mask(zone, scenario, SOURCE_YEAR)
         first_year = ee.Image(0).rename("first_expansion_year").int16()
 
@@ -259,7 +259,7 @@ def _(FUTURE_YEARS, LABEL_MAP, SOURCE_CLASSES, SOURCE_YEAR):
         return first_year.selfMask().rename("first_expansion_year")
 
 
-    def expansion_area_bands(zone: Zone) -> tuple[list[ee.Image], list[dict[str, object]]]:
+    def expansion_area_bands(zone: ChenAnalysisZone) -> tuple[list[ee.Image], list[dict[str, object]]]:
         area_bands: list[ee.Image] = []
         band_specs: list[dict[str, object]] = []
         pixel_area = ee.Image.pixelArea()
@@ -287,7 +287,7 @@ def _(FUTURE_YEARS, LABEL_MAP, SOURCE_CLASSES, SOURCE_YEAR):
 
     def reduce_zone_expansion_sources(
         zone_name: str,
-        zone: Zone,
+        zone: ChenAnalysisZone,
     ) -> list[dict[str, object]]:
         area_bands, band_specs = expansion_area_bands(zone)
         source_label = zone.area_raster.select(str(SOURCE_YEAR)).unmask(0).rename(
@@ -339,7 +339,7 @@ def _(FUTURE_YEARS, LABEL_MAP, SOURCE_CLASSES, SOURCE_YEAR):
 
     def reduce_expansion_sources(
         zone_name: str,
-        zone: Zone,
+        zone: ChenAnalysisZone,
         scenario: str,
     ) -> list[dict[str, object]]:
         return [
@@ -350,7 +350,7 @@ def _(FUTURE_YEARS, LABEL_MAP, SOURCE_CLASSES, SOURCE_YEAR):
 
 
     def build_chen_transition_tables(
-        manager: GeoManager,
+        manager: ChenAnalysisZoneCollection,
         df_calibration: pd.DataFrame,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         calibration_lookup = df_calibration.set_index(["zone", "scenario"]).to_dict("index")
@@ -698,7 +698,7 @@ def _(
         return "extreme_growth"
 
 
-    def build_historical_settlement_growth(manager: GeoManager) -> pd.DataFrame:
+    def build_historical_settlement_growth(manager: ChenAnalysisZoneCollection) -> pd.DataFrame:
         settlement_area = manager.area_df["settlements"].unstack("year")
         rows = []
         for start_year, end_year in HISTORICAL_GROWTH_PERIODS:
@@ -1117,7 +1117,7 @@ def _(
         return "low"
 
 
-    def build_zone_context(manager: GeoManager) -> pd.DataFrame:
+    def build_zone_context(manager: ChenAnalysisZoneCollection) -> pd.DataFrame:
         area_2020 = manager.area_df.xs(SOURCE_YEAR, level="year")
         out = pd.DataFrame(
             {
@@ -1511,7 +1511,7 @@ def _(SETTLEMENT_IDX, SOURCE_YEAR, manager):
 
     m = leafmap.Map()
     m.add_ee_layer(
-        _example_zone.ssp_images["SSP1"].select(str(SOURCE_YEAR)),
+        _example_zone.chen_urban_masks_by_scenario["SSP1"].select(str(SOURCE_YEAR)),
         {"min": 0, "max": 1, "palette": ["red"]},
         name=f"Chen SSP1 {SOURCE_YEAR} urban",
     )

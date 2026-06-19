@@ -8,7 +8,11 @@ import pandas as pd
 import pytest
 
 from nu_afolu import chen
-from nu_afolu.chen import GeoManager, Zone, load_chen_manager
+from nu_afolu.chen import (
+    ChenAnalysisZone,
+    ChenAnalysisZoneCollection,
+    load_chen_analysis_zones,
+)
 from nu_afolu.utils import safe_ratio
 
 if TYPE_CHECKING:
@@ -21,8 +25,8 @@ ZONE_B_SETTLEMENTS = 20
 SETTLEMENT_IDX = 9
 
 
-def _make_zone(area_df: pd.DataFrame, bbox: object = "bbox") -> Zone:
-    return Zone(
+def _make_zone(area_df: pd.DataFrame, bbox: object = "bbox") -> ChenAnalysisZone:
+    return ChenAnalysisZone(
         bbox=bbox,
         area_raster=object(),
         transition_raster=object(),
@@ -40,24 +44,24 @@ class SafeRatioTest(unittest.TestCase):
         assert math.isnan(safe_ratio(6, 0))
 
 
-class ZoneTest(unittest.TestCase):
+class ChenAnalysisZoneTest(unittest.TestCase):
     def test_bbox_assignment_invalidates_bbox_dependent_cache(self) -> None:
         zone = _make_zone(pd.DataFrame({"settlements": [1]}, index=[2020]))
-        zone.__dict__["ssp_images"] = {"SSP1": object()}
-        zone.__dict__["area_chen"] = pd.DataFrame()
-        zone.__dict__["settlement_mask"] = object()
+        zone.__dict__["chen_urban_masks_by_scenario"] = {"SSP1": object()}
+        zone.__dict__["chen_urban_area_by_scenario_m2"] = pd.DataFrame()
+        zone.__dict__["observed_settlement_mask"] = object()
 
         zone.bbox = "new-bbox"
 
-        assert "ssp_images" not in zone.__dict__
-        assert "area_chen" not in zone.__dict__
-        assert "settlement_mask" in zone.__dict__
+        assert "chen_urban_masks_by_scenario" not in zone.__dict__
+        assert "chen_urban_area_by_scenario_m2" not in zone.__dict__
+        assert "observed_settlement_mask" in zone.__dict__
         assert zone.bbox == "new-bbox"
 
 
-class GeoManagerTest(unittest.TestCase):
+class ChenAnalysisZoneCollectionTest(unittest.TestCase):
     def test_area_df_combines_zone_tables_and_invalidates_on_change(self) -> None:
-        manager = GeoManager()
+        manager = ChenAnalysisZoneCollection()
         manager["zone-a"] = _make_zone(
             pd.DataFrame(
                 {"settlements": [ZONE_A_SETTLEMENTS], "forests_primary": [90]},
@@ -91,7 +95,7 @@ class _FakeImage:
         return self
 
 
-def test_load_chen_manager_loads_available_zones_and_reports_missing(
+def test_load_chen_analysis_zones_loads_available_zones_and_reports_missing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -107,7 +111,7 @@ def test_load_chen_manager_loads_available_zones_and_reports_missing(
     monkeypatch.setattr(chen.ee, "Image", lambda value: value)
     monkeypatch.setattr(chen.ee, "Number", lambda value: value)
 
-    manager, missing = load_chen_manager(
+    manager, missing = load_chen_analysis_zones(
         tmp_path,
         ["zone-a", "zone-b"],
         object(),
@@ -124,9 +128,9 @@ def test_load_chen_manager_loads_available_zones_and_reports_missing(
     ]
 
 
-def test_load_chen_manager_raises_when_no_zones_load(tmp_path: Path) -> None:
+def test_load_chen_analysis_zones_raises_when_no_zones_load(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="No zones were loaded"):
-        load_chen_manager(tmp_path, ["zone-a"], object(), SETTLEMENT_IDX)
+        load_chen_analysis_zones(tmp_path, ["zone-a"], object(), SETTLEMENT_IDX)
 
 
 if __name__ == "__main__":

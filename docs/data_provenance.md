@@ -47,8 +47,8 @@ The upstream Dagster assets produce the observed historical artifacts consumed b
   - Writes the per-zone `area_table` parquet artifact.
 
 - `src/nu_afolu/chen.py`
-  - Defines Chen collection constants and `Zone` / `GeoManager`.
-  - `load_chen_manager` loads per-zone `bbox`, `area_raster`, `transition_raster`, and `area_table` from `OUT_PATH`.
+  - Defines Chen collection constants, `ChenAnalysisZone`, and `ChenAnalysisZoneCollection`.
+  - `load_chen_analysis_zones` loads per-zone `bbox`, `area_raster`, `transition_raster`, and `area_table` from `OUT_PATH`.
   - `observed_settlement_fraction_image` aggregates the 30m observed settlement mask onto Chen's 1km projection for calibration and exploration.
 
 ## Notebook Contracts

@@ -18,7 +18,7 @@ CHEN_YEARS = tuple(range(2020, 2101, 10))
 SSP_NAMES = tuple(f"SSP{suffix}" for suffix in range(1, 6))
 
 
-def reduce_ssp_col(
+def reduce_chen_urban_area_by_scenario(
     col: ee.ImageCollection,
     *,
     geometry: ee.Geometry,
@@ -52,7 +52,7 @@ def _decode_ee_json(path: Path) -> ee.ComputedObject:
         return ee.deserializer.decode(json.load(file))
 
 
-class Zone:
+class ChenAnalysisZone:
     def __init__(
         self,
         bbox: ee.Geometry,
@@ -75,7 +75,10 @@ class Zone:
         self.chen_urban_value = chen_urban_value
         self.chen_years = tuple(chen_years)
         self.ssp_names = tuple(ssp_names)
-        self._fields_to_invalidate = ("ssp_images", "area_chen")
+        self._fields_to_invalidate = (
+            "chen_urban_masks_by_scenario",
+            "chen_urban_area_by_scenario_m2",
+        )
 
     @property
     def bbox(self) -> ee.Geometry:
@@ -96,10 +99,10 @@ class Zone:
             self.__dict__.pop(field, None)
 
     @cached_property
-    def ssp_images(self) -> dict[str, ee.Image]:
-        ssp_images: dict[str, ee.Image] = {}
+    def chen_urban_masks_by_scenario(self) -> dict[str, ee.Image]:
+        masks_by_scenario: dict[str, ee.Image] = {}
         for name in self.ssp_names:
-            ssp_images[name] = (
+            masks_by_scenario[name] = (
                 self.chen_collection.select(name)
                 .toBands()
                 .rename([str(year) for year in self.chen_years])
@@ -107,11 +110,11 @@ class Zone:
                 .clip(self.bbox)
                 .selfMask()
             )
-        return ssp_images
+        return masks_by_scenario
 
     @cached_property
-    def area_chen(self) -> pd.DataFrame:
-        return reduce_ssp_col(
+    def chen_urban_area_by_scenario_m2(self) -> pd.DataFrame:
+        return reduce_chen_urban_area_by_scenario(
             self.chen_collection,
             geometry=self.bbox,
             scale=1000,
@@ -121,22 +124,22 @@ class Zone:
         )
 
     @cached_property
-    def settlement_mask(self) -> ee.Image:
+    def observed_settlement_mask(self) -> ee.Image:
         return self.area_raster.eq(ee.Number(self.settlement_idx))
 
-    def resample_settlement_mask(self, ssp: str) -> ee.Image:
-        return self.settlement_mask.reduceResolution(
+    def resample_observed_settlement_mask(self, ssp: str) -> ee.Image:
+        return self.observed_settlement_mask.reduceResolution(
             reducer=ee.Reducer.mean(),
             maxPixels=2048,
-        ).reproject(self.ssp_images[ssp].projection())
+        ).reproject(self.chen_urban_masks_by_scenario[ssp].projection())
 
 
-class _ObservableDict(dict[str, Zone]):
+class _ObservableDict(dict[str, ChenAnalysisZone]):
     def __init__(self, on_change: Callable[[], None]) -> None:
         self._on_change = on_change
         super().__init__()
 
-    def __setitem__(self, key: str, item: Zone) -> None:
+    def __setitem__(self, key: str, item: ChenAnalysisZone) -> None:
         super().__setitem__(key, item)
         self._on_change()
 
@@ -145,7 +148,7 @@ class _ObservableDict(dict[str, Zone]):
         self._on_change()
 
 
-class GeoManager:
+class ChenAnalysisZoneCollection:
     def __init__(self) -> None:
         self._zones = _ObservableDict(self._invalidate)
         self._area_df: pd.DataFrame | None = None
@@ -155,20 +158,20 @@ class GeoManager:
         self._area_df = None
         self._area_arr = None
 
-    def __getitem__(self, key: str) -> Zone:
+    def __getitem__(self, key: str) -> ChenAnalysisZone:
         return self._zones[key]
 
-    def __setitem__(self, key: str, value: Zone) -> None:
+    def __setitem__(self, key: str, value: ChenAnalysisZone) -> None:
         self._zones[key] = value
 
     def __delitem__(self, key: str) -> None:
         del self._zones[key]
 
-    def __iter__(self) -> Iterator[tuple[str, Zone]]:
+    def __iter__(self) -> Iterator[tuple[str, ChenAnalysisZone]]:
         return iter(self._zones.items())
 
     @property
-    def zones(self) -> dict[str, Zone]:
+    def zones(self) -> dict[str, ChenAnalysisZone]:
         return self._zones
 
     @property
@@ -199,18 +202,27 @@ class GeoManager:
         return self._area_arr
 
 
-def chen_urban_mask(zone: Zone, scenario: str, year: int) -> ee.Image:
-    return zone.ssp_images[scenario].select(str(year)).unmask(0).rename("chen_urban")
+def chen_urban_mask(zone: ChenAnalysisZone, scenario: str, year: int) -> ee.Image:
+    return (
+        zone.chen_urban_masks_by_scenario[scenario]
+        .select(str(year))
+        .unmask(0)
+        .rename("chen_urban")
+    )
 
 
 def observed_settlement_fraction_image(
-    zone: Zone,
+    zone: ChenAnalysisZone,
     scenario: str,
     source_year: int,
 ) -> ee.Image:
-    chen_projection = zone.ssp_images[scenario].select(str(source_year)).projection()
+    chen_projection = (
+        zone.chen_urban_masks_by_scenario[scenario]
+        .select(str(source_year))
+        .projection()
+    )
     return (
-        zone.settlement_mask.select(str(source_year))
+        zone.observed_settlement_mask.select(str(source_year))
         .unmask(0)
         .reduceResolution(reducer=ee.Reducer.mean(), maxPixels=2048)
         .reproject(chen_projection)
@@ -218,13 +230,13 @@ def observed_settlement_fraction_image(
     )
 
 
-def load_chen_manager(
+def load_chen_analysis_zones(
     out_path: Path,
     zone_names: Sequence[str],
     chen_collection: ee.ImageCollection,
     settlement_idx: int,
-) -> tuple[GeoManager, pd.DataFrame]:
-    manager = GeoManager()
+) -> tuple[ChenAnalysisZoneCollection, pd.DataFrame]:
+    manager = ChenAnalysisZoneCollection()
     missing_rows: list[dict[str, str]] = []
 
     for zone_name in zone_names:
@@ -249,7 +261,7 @@ def load_chen_manager(
             transition_raster.neq(ee.Number(0)),
         )
 
-        manager[zone_name] = Zone(
+        manager[zone_name] = ChenAnalysisZone(
             bbox=bbox,
             area_raster=area_raster,
             transition_raster=transition_raster,

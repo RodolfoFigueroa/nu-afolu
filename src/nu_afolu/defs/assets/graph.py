@@ -213,7 +213,7 @@ def get_pastures_mask(
 
 
 @dg.op(out=dg.DynamicOut(dagster_type=int))
-def generate_years() -> Iterator[dg.DynamicOutput[int]]:
+def generate_glc_fcs_years() -> Iterator[dg.DynamicOutput[int]]:
     for year in range(2000, 2022):
         yield dg.DynamicOutput(year, mapping_key=str(year))
 
@@ -428,7 +428,7 @@ def stack_rasters_into_bands(
     partitions_def=zone_partitions,
     group_name="class_mask_graph",
 )
-def foo(bbox: ee.Geometry) -> dict[str, pd.DataFrame]:
+def build_glc_fcs_zone_rasters(bbox: ee.Geometry) -> dict[str, pd.DataFrame]:
     glc30 = load_glc30(bbox)
     native_proj = get_native_projection(glc30)
     transition_label_map = generate_transition_label_map()
@@ -467,7 +467,7 @@ def foo(bbox: ee.Geometry) -> dict[str, pd.DataFrame]:
     shrublands = class_mask_op_factory("shrublands")(glc30, bbox)
     wetlands = class_mask_op_factory("wetlands")(glc30, bbox)
 
-    wanted_years = generate_years()
+    wanted_years = generate_glc_fcs_years()
 
     transition_rasters = (
         wanted_years.map(

@@ -16,6 +16,11 @@ with app.setup:
     import seaborn as sns
     from dagster_components.partitions import zone_partitions
 
+    from nu_afolu.artifact_validation import (
+        raise_for_validation_errors,
+        validate_calibration_table,
+        validate_transition_closure_artifacts,
+    )
     from nu_afolu.chen import (
         CHEN_COLLECTION_ID,
         CHEN_YEARS,
@@ -136,29 +141,31 @@ def _(chen_artifact_dir, manager):
         )
 
     df_calibration = pd.read_parquet(_calibration_path)
-    _required_columns = {
-        "zone",
-        "scenario",
-        "observed_area_m2",
-        "chen_area_m2",
-        "area_bias",
-        "ape",
-        "precision",
-        "recall",
-        "iou",
-        "correction_factor",
-        "calibration_valid",
-        "reliability",
-    }
-    _missing_columns = sorted(_required_columns.difference(df_calibration.columns))
-    if _missing_columns:
-        raise ValueError(f"Calibration artifact is missing columns: {_missing_columns}")
-
-    assert df_calibration.shape[0] == len(manager.zones) * len(SSP_NAMES)
-    assert set(df_calibration["scenario"]).issubset(set(SSP_NAMES))
+    _validation_report = validate_calibration_table(
+        df_calibration,
+        zone_names=manager.zones,
+    )
+    raise_for_validation_errors(_validation_report)
+    _validation_summary = (
+        _validation_report
+        if not _validation_report.empty
+        else pd.DataFrame(
+            [
+                {
+                    "artifact": "calibration",
+                    "check": "validation",
+                    "severity": "pass",
+                    "message": "Calibration handoff validation checks passed.",
+                    "rows": 0,
+                }
+            ]
+        )
+    )
 
     mo.vstack(
         [
+            mo.md("### Calibration handoff validation"),
+            _validation_summary,
             mo.md("### Calibration handoff"),
             pd.DataFrame(
                 [
@@ -1274,10 +1281,12 @@ def _(df_land_estimation_assessment):
 @app.cell
 def _(
     chen_artifact_dir,
+    df_calibration,
     df_chen_expansion,
     df_chen_transitions,
     df_land_estimation_assessment,
     df_review_candidates,
+    manager,
 ):
     chen_artifact_dir.mkdir(parents=True, exist_ok=True)
     _artifacts = {
@@ -1293,6 +1302,31 @@ def _(
         ),
     }
 
+    _validation_report = validate_transition_closure_artifacts(
+        df_calibration,
+        df_chen_expansion,
+        df_chen_transitions,
+        df_land_estimation_assessment,
+        df_review_candidates,
+        zone_names=manager.zones,
+    )
+    raise_for_validation_errors(_validation_report)
+    _validation_summary = (
+        _validation_report
+        if not _validation_report.empty
+        else pd.DataFrame(
+            [
+                {
+                    "artifact": "transition_closure_outputs",
+                    "check": "validation",
+                    "severity": "pass",
+                    "message": "All artifact validation checks passed.",
+                    "rows": 0,
+                }
+            ]
+        )
+    )
+
     _export_rows = []
     for _artifact_name, (_frame, _path) in _artifacts.items():
         _frame.to_parquet(_path, index=False)
@@ -1304,7 +1338,14 @@ def _(
             }
         )
 
-    mo.vstack([mo.md("### Closure artifacts"), pd.DataFrame(_export_rows)])
+    mo.vstack(
+        [
+            mo.md("### Closure artifact validation"),
+            _validation_summary,
+            mo.md("### Closure artifacts"),
+            pd.DataFrame(_export_rows),
+        ]
+    )
     return
 
 

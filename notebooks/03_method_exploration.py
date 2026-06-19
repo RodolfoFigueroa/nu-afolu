@@ -15,6 +15,11 @@ with app.setup:
     import seaborn as sns
     from dagster_components.partitions import zone_partitions
 
+    from nu_afolu.artifact_validation import (
+        raise_for_validation_errors,
+        validate_calibration_artifacts,
+        validate_exploration_artifacts,
+    )
     from nu_afolu.chen import (
         CHEN_COLLECTION_ID,
         GeoManager,
@@ -168,58 +173,33 @@ def _(SCALE_SENSITIVITY_THRESHOLDS, chen_artifact_dir, manager):
     df_calibration = pd.read_parquet(calibration_path)
     df_scale_sensitivity = pd.read_parquet(scale_sensitivity_path)
 
-    _calibration_required_columns = {
-        "zone",
-        "scenario",
-        "observed_area_m2",
-        "chen_area_m2",
-        "area_error_m2",
-        "area_bias",
-        "ape",
-        "correction_factor_raw",
-        "correction_factor",
-        "calibration_valid",
-        "precision",
-        "recall",
-        "iou",
-    }
-    _scale_required_columns = {
-        "zone",
-        "scenario",
-        "threshold",
-        "observed_area_m2",
-        "chen_area_m2",
-        "tp_area_m2",
-        "fp_area_m2",
-        "fn_area_m2",
-        "precision",
-        "recall",
-        "iou",
-        "area_bias",
-    }
-
-    _missing_calibration_columns = sorted(
-        _calibration_required_columns.difference(df_calibration.columns)
+    _validation_report = validate_calibration_artifacts(
+        df_calibration,
+        df_scale_sensitivity,
+        zone_names=manager.zones,
+        thresholds=SCALE_SENSITIVITY_THRESHOLDS,
     )
-    _missing_scale_columns = sorted(
-        _scale_required_columns.difference(df_scale_sensitivity.columns)
-    )
-    if _missing_calibration_columns:
-        raise ValueError(
-            f"Calibration artifact is missing columns: {_missing_calibration_columns}"
+    raise_for_validation_errors(_validation_report)
+    _validation_summary = (
+        _validation_report
+        if not _validation_report.empty
+        else pd.DataFrame(
+            [
+                {
+                    "artifact": "canonical_calibration_inputs",
+                    "check": "validation",
+                    "severity": "pass",
+                    "message": "Canonical calibration artifact checks passed.",
+                    "rows": 0,
+                }
+            ]
         )
-    if _missing_scale_columns:
-        raise ValueError(
-            f"Scale-sensitivity artifact is missing columns: {_missing_scale_columns}"
-        )
-
-    assert df_calibration.shape[0] == len(manager.zones) * len(SSP_NAMES)
-    assert set(df_scale_sensitivity["threshold"]).issubset(
-        set(SCALE_SENSITIVITY_THRESHOLDS)
     )
 
     mo.vstack(
         [
+            mo.md("### Input artifact validation"),
+            _validation_summary,
             mo.md("### Input artifacts"),
             pd.DataFrame(
                 [
@@ -1009,6 +989,7 @@ def _(
     df_method_recommendation_candidates,
     df_method_summary,
     exploration_artifact_dir,
+    manager,
 ):
     exploration_artifact_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1035,6 +1016,31 @@ def _(
         ),
     }
 
+    _validation_report = validate_exploration_artifacts(
+        df_method_comparison,
+        df_method_summary,
+        df_method_recommendation_candidates,
+        df_disagreement_typology,
+        df_disagreement_summary,
+        zone_names=manager.zones,
+    )
+    raise_for_validation_errors(_validation_report)
+    _validation_summary = (
+        _validation_report
+        if not _validation_report.empty
+        else pd.DataFrame(
+            [
+                {
+                    "artifact": "exploration_outputs",
+                    "check": "validation",
+                    "severity": "pass",
+                    "message": "All artifact validation checks passed.",
+                    "rows": 0,
+                }
+            ]
+        )
+    )
+
     _export_rows: list[dict[str, object]] = []
     for _artifact_name, (_frame, _path) in _exploration_artifacts.items():
         _frame.to_parquet(_path, index=False)
@@ -1047,7 +1053,14 @@ def _(
         )
 
     df_exploration_artifacts = pd.DataFrame(_export_rows)
-    mo.vstack([mo.md("### Exploration artifacts"), df_exploration_artifacts])
+    mo.vstack(
+        [
+            mo.md("### Exploration artifact validation"),
+            _validation_summary,
+            mo.md("### Exploration artifacts"),
+            df_exploration_artifacts,
+        ]
+    )
     return
 
 

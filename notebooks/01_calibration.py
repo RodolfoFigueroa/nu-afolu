@@ -15,6 +15,10 @@ with app.setup:
     import seaborn as sns
     from dagster_components.partitions import zone_partitions
 
+    from nu_afolu.artifact_validation import (
+        raise_for_validation_errors,
+        validate_calibration_artifacts,
+    )
     from nu_afolu.chen import (
         CHEN_COLLECTION_ID,
         GeoManager,
@@ -572,18 +576,49 @@ def _(df_scale_sensitivity):
 
 
 @app.cell
-def _(df_calibration, df_scale_sensitivity, out_path):
+def _(
+    SCALE_SENSITIVITY_THRESHOLDS,
+    df_calibration,
+    df_scale_sensitivity,
+    manager,
+    out_path,
+):
     _chen_artifact_dir = out_path / "chen"
     _chen_artifact_dir.mkdir(parents=True, exist_ok=True)
 
     _calibration_path = _chen_artifact_dir / "calibration.parquet"
     _scale_sensitivity_path = _chen_artifact_dir / "scale_sensitivity.parquet"
 
+    _validation_report = validate_calibration_artifacts(
+        df_calibration,
+        df_scale_sensitivity,
+        zone_names=manager.zones,
+        thresholds=SCALE_SENSITIVITY_THRESHOLDS,
+    )
+    raise_for_validation_errors(_validation_report)
+    _validation_summary = (
+        _validation_report
+        if not _validation_report.empty
+        else pd.DataFrame(
+            [
+                {
+                    "artifact": "calibration_outputs",
+                    "check": "validation",
+                    "severity": "pass",
+                    "message": "All artifact validation checks passed.",
+                    "rows": 0,
+                }
+            ]
+        )
+    )
+
     df_calibration.to_parquet(_calibration_path, index=False)
     df_scale_sensitivity.to_parquet(_scale_sensitivity_path, index=False)
 
     mo.vstack(
         [
+            mo.md("### Calibration artifact validation"),
+            _validation_summary,
             mo.md("### Calibration artifacts"),
             pd.DataFrame(
                 [

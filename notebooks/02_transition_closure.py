@@ -31,6 +31,13 @@ with app.setup:
         load_chen_analysis_zones,
     )
     from nu_afolu.constants import LABEL_LIST
+    from nu_afolu.growth_plausibility import (
+        build_chen_growth_plausibility,
+        build_historical_growth_context,
+        build_historical_growth_diagnostics,
+        build_historical_settlement_growth,
+        summarize_growth_plausibility,
+    )
     from nu_afolu.transition_feasibility import (
         CAPACITY_WATCH,
         FEASIBLE,
@@ -681,113 +688,32 @@ def _(
     df_chen_expansion,
     manager,
 ):
-    def classify_growth_plausibility(
-        ratio: float,
-        historical_growth_area_m2: float,
-    ) -> str:
-        if historical_growth_area_m2 < MIN_HISTORICAL_GROWTH_AREA_M2:
-            return "insufficient_history"
-        if not np.isfinite(ratio):
-            return "insufficient_history"
-        if ratio < 0.25:
-            return "low_growth"
-        if ratio <= 4:
-            return "consistent"
-        if ratio <= 8:
-            return "high_growth"
-        return "extreme_growth"
-
-
-    def build_historical_settlement_growth(manager: ChenAnalysisZoneCollection) -> pd.DataFrame:
-        settlement_area = manager.area_df["settlements"].unstack("year")
-        rows = []
-        for start_year, end_year in HISTORICAL_GROWTH_PERIODS:
-            start_area = settlement_area[start_year]
-            end_area = settlement_area[end_year]
-            delta_area = end_area - start_area
-            rows.append(
-                pd.DataFrame(
-                    {
-                        "zone": settlement_area.index,
-                        "period_start_year": start_year,
-                        "year": end_year,
-                        "start_settlement_area_m2": start_area.to_numpy(),
-                        "end_settlement_area_m2": end_area.to_numpy(),
-                        "historical_growth_area_m2": delta_area.to_numpy(),
-                        "historical_growth_pct": delta_area.div(start_area.replace(0, np.nan)).to_numpy(),
-                    }
-                )
-            )
-        return pd.concat(rows, ignore_index=True)
-
-
-    def build_chen_growth_plausibility(
-        df_expansion: pd.DataFrame,
-        df_historical_growth: pd.DataFrame,
-    ) -> pd.DataFrame:
-        recent_start, recent_end = RECENT_GROWTH_PERIOD
-        recent_growth = (
-            df_historical_growth[
-                df_historical_growth["period_start_year"].eq(recent_start)
-                & df_historical_growth["year"].eq(recent_end)
-            ][["zone", "historical_growth_area_m2", "historical_growth_pct"]]
-            .rename(
-                columns={
-                    "historical_growth_area_m2": "recent_growth_area_m2",
-                    "historical_growth_pct": "recent_growth_pct",
-                }
-            )
-        )
-        out = df_expansion.merge(recent_growth, on="zone", how="left")
-        out["chen_to_recent_growth_ratio"] = out["chen_new_area_m2"].div(
-            out["recent_growth_area_m2"].replace(0, np.nan)
-        )
-        out["growth_plausibility"] = [
-            classify_growth_plausibility(ratio, growth)
-            for ratio, growth in zip(
-                out["chen_to_recent_growth_ratio"],
-                out["recent_growth_area_m2"],
-                strict=True,
-            )
-        ]
-        return out
-
-
-    def summarize_growth_plausibility(df: pd.DataFrame) -> pd.DataFrame:
-        label_rank = {
-            "consistent": 0,
-            "low_growth": 1,
-            "high_growth": 2,
-            "extreme_growth": 3,
-            "insufficient_history": 4,
-        }
-        rank_label = {rank: label for label, rank in label_rank.items()}
-        summary = (
-            df.assign(_rank=lambda frame: frame["growth_plausibility"].map(label_rank))
-            .groupby(["zone", "scenario"], as_index=False)
-            .agg(
-                recent_growth_area_m2=("recent_growth_area_m2", "first"),
-                max_chen_new_area_m2=("chen_new_area_m2", "max"),
-                max_chen_to_recent_growth_ratio=("chen_to_recent_growth_ratio", "max"),
-                worst_growth_rank=("_rank", "max"),
-            )
-        )
-        summary["worst_growth_plausibility"] = summary["worst_growth_rank"].map(rank_label)
-        return summary.drop(columns="worst_growth_rank")
-
-
-    df_historical_settlement_growth = build_historical_settlement_growth(manager)
+    df_historical_settlement_growth = build_historical_settlement_growth(
+        manager.area_df,
+        periods=HISTORICAL_GROWTH_PERIODS,
+    )
+    df_historical_growth_context = build_historical_growth_context(
+        df_historical_settlement_growth,
+        recent_growth_period=RECENT_GROWTH_PERIOD,
+        min_historical_growth_area_m2=MIN_HISTORICAL_GROWTH_AREA_M2,
+    )
     df_chen_growth_plausibility = build_chen_growth_plausibility(
         df_chen_expansion,
-        df_historical_settlement_growth,
+        df_historical_growth_context,
+        min_historical_growth_area_m2=MIN_HISTORICAL_GROWTH_AREA_M2,
     )
     df_growth_plausibility_summary = summarize_growth_plausibility(
         df_chen_growth_plausibility
+    )
+    df_historical_growth_diagnostics = build_historical_growth_diagnostics(
+        df_growth_plausibility_summary
     )
 
     assert df_historical_settlement_growth.shape[0] == len(manager.zones) * len(
         HISTORICAL_GROWTH_PERIODS
     )
+    assert df_historical_growth_context.shape[0] == len(manager.zones)
+    assert df_historical_growth_diagnostics.shape[0] == len(manager.zones) * len(SSP_NAMES)
     assert set(df_chen_growth_plausibility["growth_plausibility"]).issubset(
         {"consistent", "low_growth", "high_growth", "extreme_growth", "insufficient_history"}
     )
@@ -796,16 +722,24 @@ def _(
         [
             mo.md("### Historical settlement growth"),
             df_historical_settlement_growth.head(10),
+            mo.md("### Historical growth context"),
+            pd.crosstab(
+                df_historical_growth_context["historical_growth_context"],
+                columns="zones",
+            ),
             mo.md("### Chen growth plausibility"),
             pd.crosstab(
                 df_chen_growth_plausibility["scenario"],
                 df_chen_growth_plausibility["growth_plausibility"],
             ),
+            mo.md("### Historical growth diagnostics"),
+            df_historical_growth_diagnostics.head(20),
         ]
     )
     return (
         df_chen_growth_plausibility,
         df_growth_plausibility_summary,
+        df_historical_growth_diagnostics,
         df_historical_settlement_growth,
     )
 
@@ -1416,6 +1350,7 @@ def _(
     df_calibration,
     df_chen_expansion,
     df_chen_transitions,
+    df_historical_growth_diagnostics,
     df_land_estimation_assessment,
     df_review_candidates,
     df_transition_feasibility,
@@ -1428,6 +1363,10 @@ def _(
         "transition_feasibility": (
             df_transition_feasibility,
             chen_artifact_dir / "transition_feasibility.parquet",
+        ),
+        "historical_growth_diagnostics": (
+            df_historical_growth_diagnostics,
+            chen_artifact_dir / "historical_growth_diagnostics.parquet",
         ),
         "land_estimation_assessment": (
             df_land_estimation_assessment,
@@ -1444,6 +1383,7 @@ def _(
         df_chen_expansion,
         df_chen_transitions,
         df_transition_feasibility,
+        df_historical_growth_diagnostics,
         df_land_estimation_assessment,
         df_review_candidates,
         zone_names=manager.zones,

@@ -15,6 +15,13 @@ from nu_afolu.external_validation import (
     classify_external_advisory,
     combine_baseline_support,
 )
+from nu_afolu.growth_plausibility import (
+    GROWTH_PLAUSIBILITY_LABELS,
+    HISTORICAL_ENVELOPE_LABELS,
+    HISTORICAL_GROWTH_CONTEXT_LABELS,
+    HISTORICAL_GROWTH_DIAGNOSTIC_COLUMNS,
+    HISTORICAL_GROWTH_REVIEW_NOTES,
+)
 from nu_afolu.metrics import DEFAULT_CORRECTION_FACTOR_BOUNDS
 from nu_afolu.transition_feasibility import (
     CAPACITY_WATCH,
@@ -307,15 +314,6 @@ REVIEW_PRIORITY_LABELS = frozenset({"low", "medium", "high"})
 ADEQUACY_LABELS = frozenset({"good", "moderate", "poor"})
 GROWTH_RISK_LABELS = frozenset({"low", "watch", "high", "review"})
 SENSITIVE_RISK_LABELS = frozenset({"low", "watch", "high"})
-GROWTH_PLAUSIBILITY_LABELS = frozenset(
-    {
-        "consistent",
-        "low_growth",
-        "high_growth",
-        "extreme_growth",
-        "insufficient_history",
-    },
-)
 SENSITIVE_FLAG_LABELS = frozenset({"low", "watch", "high"})
 DIAGNOSTIC_TYPES = frozenset(
     {
@@ -368,6 +366,7 @@ def validate_transition_closure_artifacts(
     df_chen_expansion: pd.DataFrame,
     df_chen_transitions: pd.DataFrame,
     df_transition_feasibility: pd.DataFrame,
+    df_historical_growth_diagnostics: pd.DataFrame,
     df_land_estimation_assessment: pd.DataFrame,
     df_review_candidates: pd.DataFrame,
     *,
@@ -379,10 +378,20 @@ def validate_transition_closure_artifacts(
     _validate_expansion_table(df_chen_expansion, zones, issues)
     _validate_transition_table(df_chen_expansion, df_chen_transitions, zones, issues)
     _validate_transition_feasibility_table(df_transition_feasibility, zones, issues)
+    _validate_historical_growth_diagnostics(
+        df_historical_growth_diagnostics,
+        zones,
+        issues,
+    )
     _validate_assessment_table(df_land_estimation_assessment, zones, issues)
     _validate_assessment_feasibility_consistency(
         df_land_estimation_assessment,
         df_transition_feasibility,
+        issues,
+    )
+    _validate_assessment_growth_consistency(
+        df_land_estimation_assessment,
+        df_historical_growth_diagnostics,
         issues,
     )
     _validate_review_candidates(
@@ -901,6 +910,67 @@ def _validate_transition_feasibility_table(
     )
 
 
+def _validate_historical_growth_diagnostics(
+    df: pd.DataFrame,
+    zones: Sequence[str],
+    issues: list[ValidationRow],
+) -> None:
+    artifact = "historical_growth_diagnostics"
+    _check_required_columns(df, artifact, HISTORICAL_GROWTH_DIAGNOSTIC_COLUMNS, issues)
+    if not _has_columns(df, HISTORICAL_GROWTH_DIAGNOSTIC_COLUMNS):
+        return
+
+    _check_exact_rows(df, artifact, len(zones) * len(SSP_NAMES), issues)
+    _check_key_set(df, artifact, ["zone", "scenario"], [zones, SSP_NAMES], issues)
+    _check_unique_key(df, artifact, ["zone", "scenario"], issues)
+    _check_allowed_values(
+        df,
+        artifact,
+        "worst_growth_plausibility",
+        GROWTH_PLAUSIBILITY_LABELS,
+        issues,
+    )
+    _check_allowed_values(
+        df,
+        artifact,
+        "historical_growth_context",
+        HISTORICAL_GROWTH_CONTEXT_LABELS,
+        issues,
+    )
+    _check_allowed_values(
+        df,
+        artifact,
+        "historical_envelope_alignment",
+        HISTORICAL_ENVELOPE_LABELS,
+        issues,
+    )
+    _check_allowed_values(
+        df,
+        artifact,
+        "historical_growth_review_note",
+        HISTORICAL_GROWTH_REVIEW_NOTES,
+        issues,
+    )
+    _check_nonnegative(
+        df,
+        artifact,
+        ["max_chen_new_area_m2", "negative_historical_growth_periods"],
+        issues,
+    )
+    _check_nonnegative(
+        df,
+        artifact,
+        [
+            "historical_growth_range_ratio",
+            "max_chen_to_recent_growth_ratio",
+            "max_chen_to_historical_median_ratio",
+            "max_chen_to_historical_max_ratio",
+        ],
+        issues,
+        allow_null=True,
+    )
+
+
 def _validate_assessment_table(
     df: pd.DataFrame,
     zones: Sequence[str],
@@ -1133,6 +1203,89 @@ def _validate_assessment_feasibility_consistency(
             artifact,
             f"{observed_column}_consistency",
             f"{observed_column} must match calibrated transition feasibility.",
+            int(mismatch.sum()),
+        )
+
+
+def _validate_assessment_growth_consistency(
+    df_assessment: pd.DataFrame,
+    df_growth: pd.DataFrame,
+    issues: list[ValidationRow],
+) -> None:
+    artifact = "land_estimation_assessment"
+    key = ["zone", "scenario"]
+    growth_columns = (
+        *key,
+        "recent_growth_area_m2",
+        "max_chen_new_area_m2",
+        "max_chen_to_recent_growth_ratio",
+        "worst_growth_plausibility",
+    )
+    assessment_columns = tuple(growth_columns)
+    if not _has_columns(df_assessment, assessment_columns) or not _has_columns(
+        df_growth,
+        growth_columns,
+    ):
+        return
+
+    expected = df_growth[list(growth_columns)].rename(
+        columns={
+            column: f"expected_{column}"
+            for column in growth_columns
+            if column not in key
+        },
+    )
+    compared = df_assessment[list(assessment_columns)].merge(
+        expected,
+        on=key,
+        how="outer",
+    )
+    expected_columns = [
+        f"expected_{column}" for column in growth_columns if column not in key
+    ]
+    missing = compared[expected_columns].isna().any(axis=1)
+    _add_if(
+        issues,
+        bool(missing.sum()),
+        artifact,
+        "historical_growth_pairing",
+        "Assessment rows must pair with historical growth diagnostics.",
+        int(missing.sum()),
+    )
+    complete = compared[~missing]
+    if complete.empty:
+        return
+
+    label_mismatch = complete["worst_growth_plausibility"].ne(
+        complete["expected_worst_growth_plausibility"],
+    )
+    _add_if(
+        issues,
+        bool(label_mismatch.sum()),
+        artifact,
+        "worst_growth_plausibility_consistency",
+        "Assessment worst_growth_plausibility must match growth diagnostics.",
+        int(label_mismatch.sum()),
+    )
+    numeric_pairs = (
+        ("recent_growth_area_m2", "expected_recent_growth_area_m2"),
+        ("max_chen_new_area_m2", "expected_max_chen_new_area_m2"),
+        (
+            "max_chen_to_recent_growth_ratio",
+            "expected_max_chen_to_recent_growth_ratio",
+        ),
+    )
+    for observed_column, expected_column in numeric_pairs:
+        mismatch = _numeric_mismatch(
+            complete[observed_column],
+            complete[expected_column],
+        )
+        _add_if(
+            issues,
+            bool(mismatch.sum()),
+            artifact,
+            f"{observed_column}_consistency",
+            f"{observed_column} must match historical growth diagnostics.",
             int(mismatch.sum()),
         )
 
@@ -2305,3 +2458,18 @@ def _check_close(
         f"{column} does not match the expected calculation.",
         rows,
     )
+
+
+def _numeric_mismatch(
+    observed: pd.Series,
+    expected: pd.Series,
+    *,
+    tolerance: float = AREA_TOLERANCE_M2,
+) -> pd.Series:
+    observed_numeric = pd.to_numeric(observed, errors="coerce")
+    expected_numeric = pd.to_numeric(expected, errors="coerce")
+    both_null = observed_numeric.isna() & expected_numeric.isna()
+    both_positive_inf = np.isposinf(observed_numeric) & np.isposinf(expected_numeric)
+    both_negative_inf = np.isneginf(observed_numeric) & np.isneginf(expected_numeric)
+    close = observed_numeric.sub(expected_numeric).abs().le(tolerance)
+    return ~(both_null | both_positive_inf | both_negative_inf | close)

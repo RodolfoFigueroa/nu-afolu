@@ -11,6 +11,7 @@ The notebooks are intentionally split:
 - `notebooks/01_calibration.py` compares Chen 2020 urban extent against the observed 2020 settlement layer.
 - `notebooks/02_transition_closure.py` builds diagnostic future `source class -> settlements` transition tables and readiness screens.
 - `notebooks/03_method_exploration.py` stress-tests calibration methods and spatial-tolerance diagnostics.
+- `notebooks/04_external_settlement_validation.py` adds advisory GHSL baseline and near-term growth checks.
 
 Chen-derived transition tables are diagnostic only unless a later approval step explicitly promotes a reviewed subset.
 
@@ -34,7 +35,8 @@ Run the lightweight software and notebook checks with:
 
 ```powershell
 uv run python -m unittest discover
-uv run marimo check notebooks/01_calibration.py notebooks/02_transition_closure.py notebooks/03_method_exploration.py
+uv run pytest
+uv run marimo check notebooks/01_calibration.py notebooks/02_transition_closure.py notebooks/03_method_exploration.py notebooks/04_external_settlement_validation.py
 ```
 
 The validation suite checks artifact contracts and feasibility logic. It does not by itself approve Chen as model input.

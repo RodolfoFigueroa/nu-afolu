@@ -13,6 +13,10 @@ from nu_afolu.artifact_validation import (
     validate_transition_closure_artifacts,
 )
 from nu_afolu.chen import SSP_NAMES
+from nu_afolu.growth_plausibility import (
+    ABOVE_HISTORICAL_ENVELOPE,
+    SUPPORTS_MANUAL_REVIEW,
+)
 from nu_afolu.transition_feasibility import CAPACITY_WATCH, FEASIBLE, INFEASIBLE
 
 ZONES = ("zone-a", "zone-b")
@@ -158,6 +162,35 @@ def transition_feasibility() -> pd.DataFrame:
             for zone in ZONES
             for scenario in SSP_NAMES
             for calibration in ("raw", "calibrated")
+        ],
+    )
+
+
+@pytest.fixture
+def historical_growth_diagnostics() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "zone": zone,
+                "scenario": scenario,
+                "recent_growth_area_m2": 20.0,
+                "recent_growth_pct": 0.02,
+                "median_historical_decadal_growth_area_m2": 20.0,
+                "max_historical_decadal_growth_area_m2": 25.0,
+                "min_historical_decadal_growth_area_m2": 15.0,
+                "historical_growth_range_ratio": 25.0 / 15.0,
+                "negative_historical_growth_periods": 0,
+                "historical_growth_context": "stable_history",
+                "max_chen_new_area_m2": 12.0,
+                "max_chen_to_recent_growth_ratio": 0.6,
+                "max_chen_to_historical_median_ratio": 0.6,
+                "max_chen_to_historical_max_ratio": 12.0 / 25.0,
+                "worst_growth_plausibility": "consistent",
+                "historical_envelope_alignment": "within_historical_envelope",
+                "historical_growth_review_note": SUPPORTS_MANUAL_REVIEW,
+            }
+            for zone in ZONES
+            for scenario in SSP_NAMES
         ],
     )
 
@@ -353,6 +386,7 @@ def test_validation_accepts_valid_artifacts(
     expansion: pd.DataFrame,
     transitions: pd.DataFrame,
     transition_feasibility: pd.DataFrame,
+    historical_growth_diagnostics: pd.DataFrame,
     assessment: pd.DataFrame,
     review_candidates: pd.DataFrame,
     method_comparison: pd.DataFrame,
@@ -372,6 +406,7 @@ def test_validation_accepts_valid_artifacts(
         expansion,
         transitions,
         transition_feasibility,
+        historical_growth_diagnostics,
         assessment,
         review_candidates,
         zone_names=ZONES,
@@ -425,6 +460,7 @@ def test_transition_validation_reports_raw_total_mismatch(
     expansion: pd.DataFrame,
     transitions: pd.DataFrame,
     transition_feasibility: pd.DataFrame,
+    historical_growth_diagnostics: pd.DataFrame,
     assessment: pd.DataFrame,
     review_candidates: pd.DataFrame,
 ) -> None:
@@ -437,6 +473,7 @@ def test_transition_validation_reports_raw_total_mismatch(
         expansion,
         invalid,
         transition_feasibility,
+        historical_growth_diagnostics,
         assessment,
         review_candidates,
         zone_names=ZONES,
@@ -450,6 +487,7 @@ def test_transition_validation_reports_scaled_up_flag_mismatch(
     expansion: pd.DataFrame,
     transitions: pd.DataFrame,
     transition_feasibility: pd.DataFrame,
+    historical_growth_diagnostics: pd.DataFrame,
     assessment: pd.DataFrame,
     review_candidates: pd.DataFrame,
 ) -> None:
@@ -462,6 +500,7 @@ def test_transition_validation_reports_scaled_up_flag_mismatch(
         expansion,
         invalid,
         transition_feasibility,
+        historical_growth_diagnostics,
         assessment,
         review_candidates,
         zone_names=ZONES,
@@ -475,6 +514,7 @@ def test_transition_validation_reports_raw_infeasibility(
     expansion: pd.DataFrame,
     transitions: pd.DataFrame,
     transition_feasibility: pd.DataFrame,
+    historical_growth_diagnostics: pd.DataFrame,
     assessment: pd.DataFrame,
     review_candidates: pd.DataFrame,
 ) -> None:
@@ -490,6 +530,7 @@ def test_transition_validation_reports_raw_infeasibility(
         expansion,
         transitions,
         invalid,
+        historical_growth_diagnostics,
         assessment,
         review_candidates,
         zone_names=ZONES,
@@ -503,6 +544,7 @@ def test_transition_validation_accepts_calibrated_infeasibility(
     expansion: pd.DataFrame,
     transitions: pd.DataFrame,
     transition_feasibility: pd.DataFrame,
+    historical_growth_diagnostics: pd.DataFrame,
     assessment: pd.DataFrame,
     review_candidates: pd.DataFrame,
 ) -> None:
@@ -551,6 +593,7 @@ def test_transition_validation_accepts_calibrated_infeasibility(
         expansion,
         transitions,
         infeasible,
+        historical_growth_diagnostics,
         gated_assessment,
         gated_review_candidates,
         zone_names=ZONES,
@@ -564,6 +607,7 @@ def test_transition_validation_reports_capacity_watch_ready_label(
     expansion: pd.DataFrame,
     transitions: pd.DataFrame,
     transition_feasibility: pd.DataFrame,
+    historical_growth_diagnostics: pd.DataFrame,
     assessment: pd.DataFrame,
     review_candidates: pd.DataFrame,
 ) -> None:
@@ -594,12 +638,66 @@ def test_transition_validation_reports_capacity_watch_ready_label(
         expansion,
         transitions,
         watched,
+        historical_growth_diagnostics,
         watched_assessment,
         watched_candidates,
         zone_names=ZONES,
     )
 
     assert "capacity_watch_readiness_gate" in set(report["check"])
+
+
+def test_transition_validation_reports_invalid_growth_diagnostic_label(
+    calibration: pd.DataFrame,
+    expansion: pd.DataFrame,
+    transitions: pd.DataFrame,
+    transition_feasibility: pd.DataFrame,
+    historical_growth_diagnostics: pd.DataFrame,
+    assessment: pd.DataFrame,
+    review_candidates: pd.DataFrame,
+) -> None:
+    invalid = historical_growth_diagnostics.copy()
+    invalid.loc[0, "historical_envelope_alignment"] = "approved_for_model_input"
+
+    report = validate_transition_closure_artifacts(
+        calibration,
+        expansion,
+        transitions,
+        transition_feasibility,
+        invalid,
+        assessment,
+        review_candidates,
+        zone_names=ZONES,
+    )
+
+    assert "historical_envelope_alignment_allowed_values" in set(report["check"])
+
+
+def test_transition_validation_reports_growth_pairing_mismatch(
+    calibration: pd.DataFrame,
+    expansion: pd.DataFrame,
+    transitions: pd.DataFrame,
+    transition_feasibility: pd.DataFrame,
+    historical_growth_diagnostics: pd.DataFrame,
+    assessment: pd.DataFrame,
+    review_candidates: pd.DataFrame,
+) -> None:
+    invalid = historical_growth_diagnostics.copy()
+    invalid.loc[0, "worst_growth_plausibility"] = "high_growth"
+    invalid.loc[0, "historical_envelope_alignment"] = ABOVE_HISTORICAL_ENVELOPE
+
+    report = validate_transition_closure_artifacts(
+        calibration,
+        expansion,
+        transitions,
+        transition_feasibility,
+        invalid,
+        assessment,
+        review_candidates,
+        zone_names=ZONES,
+    )
+
+    assert "worst_growth_plausibility_consistency" in set(report["check"])
 
 
 def test_exploration_validation_reports_invalid_diagnostic_type(

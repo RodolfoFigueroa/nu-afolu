@@ -110,7 +110,8 @@ Processing:
 - Overlays Chen future expansion on the observed 2020 GLC-FCS30D-derived land-use raster.
 - Builds diagnostic `source class -> settlements` transition rows.
 - Applies raw and calibrated variants using the 2020 correction factor.
-- Compares Chen decadal expansion against observed historical settlement growth from `manager.area_df`.
+- Compares Chen decadal expansion against observed historical settlement growth from `manager.area_df`, using the recent 2010-2020 decade plus 2000-2010 and 2000-2020 context.
+- Flags historical growth context such as volatile historical growth or observed settlement decline without changing readiness labels by itself.
 - Screens sensitive source classes: `forests_primary`, `forests_mangroves`, and `wetlands`; tracks `forests_secondary` as a watch class.
 - Checks transition feasibility against observed 2020 source-class stock.
 - Produces readiness and manual-review-priority labels.
@@ -120,6 +121,7 @@ Expected outputs:
 - `OUT_PATH/chen/chen_expansion.parquet`
 - `OUT_PATH/chen/chen_transitions.parquet`
 - `OUT_PATH/chen/transition_feasibility.parquet`
+- `OUT_PATH/chen/historical_growth_diagnostics.parquet`
 - `OUT_PATH/chen/land_estimation_assessment.parquet`
 - `OUT_PATH/chen/review_candidates.parquet`
 
@@ -198,6 +200,9 @@ The test suite and validation helpers check software and artifact contracts. The
 
 - `src/nu_afolu/transition_feasibility.py`
   - Checks cumulative future transition demand against observed 2020 source-class stock.
+
+- `src/nu_afolu/growth_plausibility.py`
+  - Builds historical settlement-growth diagnostics and Chen-vs-history plausibility labels.
 
 - `src/nu_afolu/metrics.py`
   - Shared calibration and agreement metric calculations.

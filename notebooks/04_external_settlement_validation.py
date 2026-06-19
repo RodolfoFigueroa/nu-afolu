@@ -215,6 +215,7 @@ def _(
         "chen_expansion": chen_artifact_dir / "chen_expansion.parquet",
         "chen_transitions": chen_artifact_dir / "chen_transitions.parquet",
         "transition_feasibility": chen_artifact_dir / "transition_feasibility.parquet",
+        "historical_growth_diagnostics": chen_artifact_dir / "historical_growth_diagnostics.parquet",
         "land_estimation_assessment": chen_artifact_dir / "land_estimation_assessment.parquet",
         "review_candidates": chen_artifact_dir / "review_candidates.parquet",
     }
@@ -232,6 +233,9 @@ def _(
     df_chen_expansion = pd.read_parquet(_artifact_paths["chen_expansion"])
     df_chen_transitions = pd.read_parquet(_artifact_paths["chen_transitions"])
     df_transition_feasibility = pd.read_parquet(_artifact_paths["transition_feasibility"])
+    df_historical_growth_diagnostics = pd.read_parquet(
+        _artifact_paths["historical_growth_diagnostics"]
+    )
     df_land_estimation_assessment = pd.read_parquet(
         _artifact_paths["land_estimation_assessment"]
     )
@@ -242,6 +246,7 @@ def _(
         df_chen_expansion,
         df_chen_transitions,
         df_transition_feasibility,
+        df_historical_growth_diagnostics,
         df_land_estimation_assessment,
         df_review_candidates,
         zone_names=manager.zones,

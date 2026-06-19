@@ -839,6 +839,225 @@ def _(df_method_summary):
     return
 
 
+@app.cell
+def _():
+    mo.md(r"""
+    # Disagreement typology
+
+    The method comparison can make buffered methods look like easy winners because their score asks whether Chen and observed settlement are near each other within a tolerance. This diagnostic keeps that tolerance-aware signal, but puts it beside the current fractional calibration and the strict 50% observed-settlement threshold so zone-scenario pairs with hidden area mismatch stay visible.
+    """)
+    return
+
+
+@app.cell
+def _(
+    BUFFER_DISTANCES_M,
+    BUFFER_OBSERVED_THRESHOLD,
+    df_method_comparison,
+    manager,
+):
+    def build_disagreement_typology(
+        df: pd.DataFrame,
+        *,
+        canonical_method: str = "fractional_current",
+        strict_method: str = "threshold_50",
+        buffered_method: str | None = None,
+        low_iou_threshold: float = 0.35,
+        high_buffered_threshold: float = 0.80,
+        low_buffered_threshold: float = 0.70,
+        high_ape_threshold: float = 0.35,
+        moderate_ape_threshold: float = 0.20,
+        method_gain_threshold: float = 0.10,
+        ape_tolerance: float = 0.05,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        if buffered_method is None:
+            buffered_method = (
+                f"threshold_{int(BUFFER_OBSERVED_THRESHOLD * 100)}_buffer_"
+                f"{max(BUFFER_DISTANCES_M)}m"
+            )
+
+        method_names = [canonical_method, strict_method, buffered_method]
+        metric_names = [
+            "spatial_score",
+            "ape",
+            "area_bias",
+            "correction_factor",
+            "valid_comparison",
+        ]
+        wide = (
+            df[df["method"].isin(method_names)]
+            .pivot_table(
+                index=["zone", "scenario"],
+                columns="method",
+                values=metric_names,
+                aggfunc="first",
+            )
+            .sort_index(axis=1)
+        )
+        wide.columns = [f"{metric}__{method}" for metric, method in wide.columns]
+        out = wide.reset_index()
+
+        required_columns = {
+            f"spatial_score__{canonical_method}",
+            f"ape__{canonical_method}",
+            f"area_bias__{canonical_method}",
+            f"correction_factor__{canonical_method}",
+            f"valid_comparison__{canonical_method}",
+            f"spatial_score__{strict_method}",
+            f"ape__{strict_method}",
+            f"spatial_score__{buffered_method}",
+        }
+        missing_columns = sorted(required_columns.difference(out.columns))
+        if missing_columns:
+            message = f"Missing method diagnostics: {missing_columns}"
+            raise ValueError(message)
+
+        out = out.rename(
+            columns={
+                f"spatial_score__{canonical_method}": "current_iou",
+                f"ape__{canonical_method}": "current_ape",
+                f"area_bias__{canonical_method}": "current_area_bias",
+                f"correction_factor__{canonical_method}": "current_correction_factor",
+                f"valid_comparison__{canonical_method}": "current_valid",
+                f"spatial_score__{strict_method}": "strict_iou",
+                f"ape__{strict_method}": "strict_ape",
+                f"spatial_score__{buffered_method}": "buffered_f1_widest",
+            }
+        )
+        numeric_columns = [
+            "current_iou",
+            "current_ape",
+            "current_area_bias",
+            "current_correction_factor",
+            "strict_iou",
+            "strict_ape",
+            "buffered_f1_widest",
+        ]
+        out[numeric_columns] = out[numeric_columns].apply(pd.to_numeric, errors="coerce")
+        out["current_valid"] = (
+            out["current_valid"].astype("boolean").fillna(False).astype(bool)
+        )
+        out["buffered_gain_over_current"] = out["buffered_f1_widest"] - out["current_iou"]
+        out["strict_iou_gain_over_current"] = out["strict_iou"] - out["current_iou"]
+        out["strict_ape_delta"] = out["strict_ape"] - out["current_ape"]
+
+        out["area_error_class"] = np.select(
+            [
+                out["current_ape"].ge(high_ape_threshold),
+                out["current_ape"].ge(moderate_ape_threshold),
+            ],
+            ["large_area_mismatch", "moderate_area_mismatch"],
+            default="area_close",
+        )
+        out["spatial_agreement_class"] = np.select(
+            [
+                out["current_iou"].ge(0.50),
+                out["current_iou"].ge(low_iou_threshold),
+            ],
+            ["strong_current_overlap", "moderate_current_overlap"],
+            default="weak_current_overlap",
+        )
+        out["diagnostic_type"] = np.select(
+            [
+                ~out["current_valid"],
+                out["buffered_f1_widest"].ge(high_buffered_threshold)
+                & out["current_ape"].ge(high_ape_threshold),
+                out["buffered_f1_widest"].lt(low_buffered_threshold)
+                & out["current_iou"].lt(low_iou_threshold),
+                out["strict_iou_gain_over_current"].ge(method_gain_threshold)
+                & out["strict_ape_delta"].le(ape_tolerance),
+                out["current_iou"].ge(low_iou_threshold)
+                & out["current_ape"].le(moderate_ape_threshold),
+            ],
+            [
+                "invalid_current_calibration",
+                "tolerance_masks_area_mismatch",
+                "weak_even_with_tolerance",
+                "strict_threshold_improves_overlap",
+                "stable_current_candidate",
+            ],
+            default="needs_targeted_method_review",
+        )
+        out["review_score"] = (
+            out["current_ape"].fillna(1.0).clip(lower=0, upper=2) * 2
+            + (1 - out["current_iou"].fillna(0.0)).clip(lower=0, upper=1)
+            + out["buffered_gain_over_current"].fillna(0.0).clip(lower=0, upper=1)
+            + (~out["current_valid"]).astype(int)
+        )
+
+        display_columns = [
+            "zone",
+            "scenario",
+            "diagnostic_type",
+            "area_error_class",
+            "spatial_agreement_class",
+            "current_iou",
+            "current_ape",
+            "current_area_bias",
+            "current_correction_factor",
+            "strict_iou",
+            "strict_ape",
+            "buffered_f1_widest",
+            "buffered_gain_over_current",
+            "strict_iou_gain_over_current",
+            "strict_ape_delta",
+            "current_valid",
+            "review_score",
+        ]
+        out = out[display_columns].sort_values(
+            ["review_score", "current_ape", "current_iou"],
+            ascending=[False, False, True],
+        )
+
+        summary = (
+            out.groupby("diagnostic_type", as_index=False)
+            .agg(
+                rows=("zone", "count"),
+                median_current_iou=("current_iou", "median"),
+                median_current_ape=("current_ape", "median"),
+                median_buffered_gain=("buffered_gain_over_current", "median"),
+                median_strict_iou_gain=("strict_iou_gain_over_current", "median"),
+                max_review_score=("review_score", "max"),
+            )
+            .assign(share=lambda frame: frame["rows"].div(len(out)))
+            .sort_values(["rows", "max_review_score"], ascending=[False, False])
+            .round(3)
+        )
+        return out.reset_index(drop=True), summary
+
+
+    df_disagreement_typology, df_disagreement_summary = build_disagreement_typology(
+        df_method_comparison
+    )
+
+    _expected_disagreement_rows = len(manager.zones) * len(SSP_NAMES)
+    if df_disagreement_typology.shape[0] != _expected_disagreement_rows:
+        message = (
+            "Expected one disagreement row per zone and scenario, got "
+            f"{df_disagreement_typology.shape[0]} rows."
+        )
+        raise ValueError(message)
+    if set(df_disagreement_typology["scenario"]) != set(SSP_NAMES):
+        message = "Disagreement typology scenarios do not match SSP_NAMES."
+        raise ValueError(message)
+
+    df_disagreement_typology.head(20)
+    return df_disagreement_summary, df_disagreement_typology
+
+
+@app.cell
+def _(df_disagreement_summary, df_disagreement_typology):
+    mo.vstack(
+        [
+            mo.md("### Disagreement typology summary"),
+            df_disagreement_summary,
+            mo.md("### Highest-priority disagreement cases"),
+            df_disagreement_typology.head(25),
+        ]
+    )
+    return
+
+
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
@@ -851,6 +1070,8 @@ def _():
 
 @app.cell
 def _(
+    df_disagreement_summary,
+    df_disagreement_typology,
     df_method_comparison,
     df_method_recommendation_candidates,
     df_method_summary,
@@ -870,6 +1091,14 @@ def _(
         "method_recommendation_candidates": (
             df_method_recommendation_candidates,
             exploration_artifact_dir / "method_recommendation_candidates.parquet",
+        ),
+        "disagreement_typology": (
+            df_disagreement_typology,
+            exploration_artifact_dir / "disagreement_typology.parquet",
+        ),
+        "disagreement_summary": (
+            df_disagreement_summary,
+            exploration_artifact_dir / "disagreement_summary.parquet",
         ),
     }
 

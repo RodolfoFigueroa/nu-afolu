@@ -3,9 +3,7 @@ import marimo
 __generated_with = "0.23.10"
 app = marimo.App(width="medium")
 
-
-@app.cell
-def _():
+with app.setup:
     import json
     import os
     from pathlib import Path
@@ -31,29 +29,10 @@ def _():
     from nu_afolu.utils import safe_ratio
 
     ee.Initialize()
-    return (
-        CHEN_COLLECTION_ID,
-        GeoManager,
-        LABEL_LIST,
-        Path,
-        SSP_NAMES,
-        Zone,
-        chen_urban_mask,
-        ee,
-        json,
-        mo,
-        np,
-        os,
-        pd,
-        plt,
-        safe_ratio,
-        sns,
-        zone_partitions,
-    )
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     # Chen SSP Method Exploration
 
@@ -63,7 +42,7 @@ def _(mo):
 
 
 @app.cell
-def _(LABEL_LIST):
+def _():
     LABEL_MAP = dict(enumerate(LABEL_LIST, start=1))
     LABEL_ID_BY_NAME = {label: idx for idx, label in LABEL_MAP.items()}
     SETTLEMENT_IDX = LABEL_ID_BY_NAME["settlements"]
@@ -110,7 +89,7 @@ def _(LABEL_LIST):
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     # Inputs
     """)
@@ -118,7 +97,7 @@ def _(mo):
 
 
 @app.cell
-def _(CHEN_COLLECTION_ID, Path, ee, os):
+def _():
     out_path = Path(os.environ["OUT_PATH"])
     chen_artifact_dir = out_path / "chen"
     exploration_artifact_dir = chen_artifact_dir / "exploration"
@@ -127,7 +106,7 @@ def _(CHEN_COLLECTION_ID, Path, ee, os):
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     ## Load zone rasters
 
@@ -137,19 +116,7 @@ def _(mo):
 
 
 @app.cell
-def _(
-    GeoManager,
-    Path,
-    SETTLEMENT_IDX,
-    Zone,
-    col_chen,
-    ee,
-    json,
-    mo,
-    out_path,
-    pd,
-    zone_partitions,
-):
+def _(SETTLEMENT_IDX, col_chen, out_path):
     def _load_chen_manager(
         out_path: Path,
         col_chen: ee.ImageCollection,
@@ -213,7 +180,7 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     ## Load canonical calibration artifacts
 
@@ -223,14 +190,7 @@ def _(mo):
 
 
 @app.cell
-def _(
-    SCALE_SENSITIVITY_THRESHOLDS,
-    SSP_NAMES,
-    chen_artifact_dir,
-    manager,
-    mo,
-    pd,
-):
+def _(SCALE_SENSITIVITY_THRESHOLDS, chen_artifact_dir, manager):
     calibration_path = chen_artifact_dir / "calibration.parquet"
     scale_sensitivity_path = chen_artifact_dir / "scale_sensitivity.parquet"
 
@@ -319,7 +279,7 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     # Method tables
 
@@ -329,7 +289,7 @@ def _(mo):
 
 
 @app.cell
-def _(CORRECTION_FACTOR_BOUNDS, METHOD_COLUMNS, np, pd):
+def _(CORRECTION_FACTOR_BOUNDS, METHOD_COLUMNS):
     def threshold_method_name(threshold: float) -> str:
         return f"threshold_{int(round(threshold * 100)):02d}"
 
@@ -404,8 +364,6 @@ def _(
     build_threshold_method_table,
     df_calibration,
     df_scale_sensitivity,
-    mo,
-    pd,
 ):
     df_canonical_method = build_canonical_method_table(df_calibration)
     df_threshold_methods = build_threshold_method_table(df_scale_sensitivity)
@@ -435,7 +393,7 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     ## Buffered agreement methods
 
@@ -448,17 +406,9 @@ def _(mo):
 def _(
     BUFFER_DISTANCES_M,
     BUFFER_OBSERVED_THRESHOLD,
-    GeoManager,
     METHOD_COLUMNS,
     SOURCE_YEAR,
-    SSP_NAMES,
-    Zone,
     add_area_calibration_fields,
-    chen_urban_mask,
-    ee,
-    np,
-    pd,
-    safe_ratio,
     threshold_method_name,
 ):
     def observed_settlement_fraction_image(zone: Zone, scenario: str) -> ee.Image:
@@ -619,11 +569,9 @@ def _(
 @app.cell
 def _(
     BUFFER_DISTANCES_M,
-    SSP_NAMES,
     build_buffered_method_table,
     df_threshold_methods,
     manager,
-    mo,
 ):
     df_buffered_methods = build_buffered_method_table(manager, df_threshold_methods)
 
@@ -652,12 +600,10 @@ def _(
 @app.cell
 def _(
     CORRECTION_FACTOR_BOUNDS,
-    SSP_NAMES,
     df_buffered_methods,
     df_canonical_method,
     df_threshold_methods,
     manager,
-    pd,
 ):
     df_method_comparison = pd.concat(
         [df_canonical_method, df_threshold_methods, df_buffered_methods],
@@ -686,7 +632,7 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     # Comparison diagnostics
     """)
@@ -694,7 +640,7 @@ def _(mo):
 
 
 @app.cell
-def _(df_method_comparison, np, plt, sns):
+def _(df_method_comparison):
     _plot_df = df_method_comparison.replace([np.inf, -np.inf], np.nan)
     _fig, _axes = plt.subplots(1, 3, figsize=(18, 5))
 
@@ -750,7 +696,7 @@ def _(df_method_comparison, np, plt, sns):
 
 
 @app.cell
-def _(SSP_NAMES, df_method_comparison, manager, mo, np, pd):
+def _(df_method_comparison, manager):
     def build_method_summary(df: pd.DataFrame) -> pd.DataFrame:
         return (
             df.replace([np.inf, -np.inf], np.nan)
@@ -854,7 +800,7 @@ def _(SSP_NAMES, df_method_comparison, manager, mo, np, pd):
 
 
 @app.cell(hide_code=True)
-def _(df_method_summary, mo):
+def _(df_method_summary):
     _current = df_method_summary[df_method_summary["method"].eq("fractional_current")].iloc[0]
     _best = df_method_summary.iloc[0]
 
@@ -894,7 +840,7 @@ def _(df_method_summary, mo):
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     # Export exploration artifacts
 
@@ -909,8 +855,6 @@ def _(
     df_method_recommendation_candidates,
     df_method_summary,
     exploration_artifact_dir,
-    mo,
-    pd,
 ):
     exploration_artifact_dir.mkdir(parents=True, exist_ok=True)
 

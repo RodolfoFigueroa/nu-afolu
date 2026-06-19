@@ -40,6 +40,22 @@ dagster-components = { git = "https://github.com/RodolfoFigueroa/dagster-compone
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = ["D", "PLR0913", "COM812", "PD013"]
+per-file-ignores = { "tests/**/*.py" = [
+    "S101",
+], "notebooks/**/*.py" = [
+    "B018",
+    "ANN001",
+    "ANN202",
+    "E501",
+    "N803",
+    "PLR0913",
+    "N806",
+    "INP001",
+    "ANN201",
+    "T201",
+    "F841",
+] }
+
 
 [tool.dg]
 directory_type = "project"

@@ -41,7 +41,9 @@ def _():
     mo.md(r"""
     # Chen SSP Method Exploration
 
-    This notebook compares candidate calibration methods for Chen's 2020 urban baseline against the current canonical calibration from `01_calibration.py`. It is exploratory: it writes separate method-comparison artifacts and does not alter the calibration handoff consumed by `02_transition_closure.py`.
+    This notebook asks whether alternative 2020 agreement methods would make Chen's adequacy assessment clearer or more robust. It compares the current fractional calibration from `01_calibration.py` with thresholded and buffered diagnostics, then identifies zone-scenario pairs where method choice changes the interpretation.
+
+    The notebook is exploratory. It writes method-comparison artifacts, but it does not replace the canonical calibration handoff consumed by `02_transition_closure.py`.
     """)
     return
 
@@ -73,7 +75,28 @@ def _():
     SCALE_SENSITIVITY_THRESHOLDS = [0.10, 0.25, 0.50]
     BUFFER_OBSERVED_THRESHOLD = 0.25
     BUFFER_DISTANCES_M = [1000, 2000]
+    return (
+        BUFFER_DISTANCES_M,
+        BUFFER_OBSERVED_THRESHOLD,
+        CORRECTION_FACTOR_BOUNDS,
+        SCALE_SENSITIVITY_THRESHOLDS,
+        SETTLEMENT_IDX,
+        SOURCE_YEAR,
+    )
 
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## Configuration
+
+    The method candidates all use the same 2020 baseline year and the same clipped correction-factor range as the canonical calibration. Threshold methods reuse the scale-sensitivity thresholds from `01_calibration.py`. Buffered methods use the 25% observed-settlement threshold, then test 1 km and 2 km spatial tolerance around Chen and observed settlement.
+    """)
+    return
+
+
+@app.cell
+def _():
     METHOD_COLUMNS = [
         "zone",
         "scenario",
@@ -98,21 +121,15 @@ def _():
         "spatial_score",
         "valid_comparison",
     ]
-    return (
-        BUFFER_DISTANCES_M,
-        BUFFER_OBSERVED_THRESHOLD,
-        CORRECTION_FACTOR_BOUNDS,
-        METHOD_COLUMNS,
-        SCALE_SENSITIVITY_THRESHOLDS,
-        SETTLEMENT_IDX,
-        SOURCE_YEAR,
-    )
+    return (METHOD_COLUMNS,)
 
 
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
     # Inputs
+
+    This section loads the same zone rasters and canonical calibration artifacts used by the previous notebooks. Keeping the inputs explicit makes the exploration reproducible without relying on live state from another marimo session.
     """)
     return
 
@@ -239,9 +256,15 @@ def _(SCALE_SENSITIVITY_THRESHOLDS, chen_artifact_dir, manager):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # Method tables
+    # Candidate method taxonomy
 
-    The comparison table normalizes each candidate into one row per `zone, scenario, method`. Fractional and threshold methods use ordinary IoU as their spatial score. Buffered methods use a tolerance-aware F1 score built from directional buffered precision and recall.
+    Each candidate method produces one row per `zone, scenario, method`, but the candidates do not all answer the same question.
+
+    - `fractional_current` is the canonical method from `01_calibration.py`. It keeps the observed 30m settlement fraction on Chen's 1 km grid, so it is the most area-preserving baseline comparison.
+    - `threshold_10`, `threshold_25`, and `threshold_50` turn the fractional observed settlement surface into binary observed-settlement cells. They ask how strict the observed-settlement definition has to be before the Chen agreement changes.
+    - `threshold_25_buffer_1000m` and `threshold_25_buffer_2000m` keep the 25% threshold but add spatial tolerance. They ask whether Chen and observed settlement are near each other, even when they do not overlap in the same 1 km cell.
+
+    Fractional and threshold methods use ordinary IoU as their spatial score. Buffered methods use tolerance-aware F1. Those scores are useful side by side, but they are not interchangeable promotion criteria: IoU rewards exact grid agreement, while buffered F1 rewards proximity within a tolerance.
     """)
     return
 
@@ -314,7 +337,11 @@ def _(
 
     mo.vstack(
         [
-            mo.md("### Canonical and threshold methods"),
+            mo.md(r"""
+            ### Canonical and threshold methods
+
+            This summary compares the area-preserving fractional method with the binary observed-settlement thresholds. Large shifts across thresholds mean the adequacy judgment is sensitive to how a 1 km Chen cell is interpreted.
+            """),
             pd.concat([df_canonical_method, df_threshold_methods], ignore_index=True)
             .groupby("method")
             .agg(
@@ -334,7 +361,14 @@ def _():
     mo.md(r"""
     ## Buffered agreement methods
 
-    Buffered methods keep the 25% observed-settlement threshold but allow spatial tolerance on Chen's 1 km grid. They report two directional quantities: the share of Chen urban area near observed settlement, and the share of observed settlement area near Chen urban. Their harmonic mean is the method's spatial score.
+    Buffered methods keep the 25% observed-settlement threshold but allow spatial tolerance on Chen's 1 km grid.
+
+    They report two directional quantities:
+
+    - `buffered_precision`: the share of Chen urban area near observed settlement.
+    - `buffered_recall`: the share of observed settlement area near Chen urban.
+
+    Their harmonic mean is `buffered_f1`, the method's spatial score. A high buffered score can mean Chen is close to observed settlement, but it does not prove that Chen preserves total settlement area.
     """)
     return
 
@@ -514,7 +548,11 @@ def _(
 
     mo.vstack(
         [
-            mo.md("### Buffered methods"),
+            mo.md(r"""
+            ### Buffered methods
+
+            The median buffered scores show how much apparent spatial agreement improves when exact overlap is relaxed to a 1 km or 2 km neighborhood. Read these as tolerance diagnostics, not as replacement IoU values.
+            """),
             df_buffered_methods.groupby("method")[
                 ["buffered_precision", "buffered_recall", "buffered_f1"]
             ]
@@ -524,6 +562,23 @@ def _(
         ]
     )
     return (df_buffered_methods,)
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## Unified method comparison table
+
+    The unified table puts every candidate on the same row contract so summaries and exports can treat them uniformly. The main reading fields are:
+
+    - `area_bias`: Chen area divided by observed area; values above 1 mean Chen is larger.
+    - `ape`: absolute percent error in area, stored as a fraction.
+    - `correction_factor`: clipped observed-to-Chen area ratio.
+    - `spatial_metric_name`: `iou` for exact-grid methods or `buffered_f1` for buffered methods.
+    - `spatial_score`: the method-specific spatial score named above.
+    - `valid_comparison`: whether the comparison has enough finite, valid calibration information to rank.
+    """)
+    return
 
 
 @app.cell
@@ -556,7 +611,12 @@ def _(
         *CORRECTION_FACTOR_BOUNDS
     ).all() or df_method_comparison["correction_factor"].eq(1.0).any()
 
-    df_method_comparison.head(10)
+    mo.vstack(
+        [
+            mo.md("### Method comparison rows"),
+            df_method_comparison.head(10),
+        ]
+    )
     return (df_method_comparison,)
 
 
@@ -564,6 +624,12 @@ def _(
 def _():
     mo.md(r"""
     # Comparison diagnostics
+
+    These diagnostics show the tradeoff between spatial agreement and area preservation.
+
+    The first plot compares each method's spatial score with area bias. Points near area bias 1 have better total-area agreement. The second plot shows whether a method requires large correction factors. The third plot compresses the tradeoff by SSP, comparing median spatial score with median absolute percentage error.
+
+    Buffered methods may move upward on the spatial-score axis because they allow nearby Chen and observed settlement cells to count as agreement. That can be useful for adequacy review, but it can also hide area mismatch; interpret buffered gains together with `ape`, `area_bias`, and `correction_factor`.
     """)
     return
 
@@ -717,11 +783,23 @@ def _(df_method_comparison, manager):
 
     mo.vstack(
         [
-            mo.md("### Method summary"),
+            mo.md(r"""
+            ### Method summary
+
+            This table ranks methods by median spatial score, then by median area error. It is a diagnostic ranking, not an automatic promotion decision.
+            """),
             df_method_summary,
-            mo.md("### Scenario-method summary"),
+            mo.md(r"""
+            ### Scenario-method summary
+
+            This view checks whether a method performs consistently across SSPs or only looks attractive in the aggregate.
+            """),
             df_scenario_method_summary.head(20),
-            mo.md("### Recommended method candidates by zone and scenario"),
+            mo.md(r"""
+            ### Recommended method candidates by zone and scenario
+
+            This table picks the highest-ranked candidate per zone and scenario using valid comparison status, spatial score, area error, and area-bias distance. It is a review queue for method discussion, not a list of accepted replacements.
+            """),
             df_method_recommendation_candidates.head(20),
         ]
     )
@@ -748,11 +826,11 @@ def _(df_method_summary):
         [
             mo.md(
                 rf"""
-                # Interpretation
+                # Promotion policy
 
                 `{_best["method"]}` has the highest median spatial score (`{_best["median_spatial_score"]}`), compared with `{_current["median_spatial_score"]}` for `fractional_current`.
 
-                That does not automatically make it the calibration method to promote. The buffered methods answer a different question: whether Chen and observed settlement are near each other within a spatial tolerance. They improve spatial agreement, but they may preserve area less well than the current fractional calibration.
+                That does not automatically make it the calibration method to promote. A canonical method needs to preserve area, keep correction factors interpretable, and avoid hiding baseline mismatch. Buffered methods answer a different question: whether Chen and observed settlement are near each other within a spatial tolerance. They can improve spatial agreement while preserving area less well than the current fractional calibration.
 
                 In this run, `fractional_current` remains the best canonical baseline for area-preserving correction, while the buffered methods are useful as tolerance-aware adequacy diagnostics.
                 """
@@ -760,7 +838,7 @@ def _(df_method_summary):
             _interpretation_table,
             mo.md(
                 r"""
-                The next comparison should focus on zone-scenario pairs where the preferred exploratory method differs from `fractional_current`, especially cases where buffered agreement is high but area error remains large.
+                Promoting any alternative method would require a later explicit edit to `01_calibration.py`, followed by rerunning transition closure and external validation. The next comparison should focus on zone-scenario pairs where the preferred exploratory method differs from `fractional_current`, especially cases where buffered agreement is high but area error remains large.
                 """
             ),
         ]
@@ -768,12 +846,29 @@ def _(df_method_summary):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     mo.md(r"""
     # Disagreement typology
 
     The method comparison can make buffered methods look like easy winners because their score asks whether Chen and observed settlement are near each other within a tolerance. This diagnostic keeps that tolerance-aware signal, but puts it beside the current fractional calibration and the strict 50% observed-settlement threshold so zone-scenario pairs with hidden area mismatch stay visible.
+
+    The typology uses three reference methods:
+
+    - `fractional_current`: current canonical IoU and area error.
+    - `threshold_50`: strict observed-settlement threshold, used to see whether a stricter observed definition improves exact overlap.
+    - the widest buffered method: 25% observed threshold with the largest configured buffer distance.
+
+    The labels mean:
+
+    - `invalid_current_calibration`: the current calibration row is not valid enough to rank.
+    - `tolerance_masks_area_mismatch`: buffered agreement is high, but current area error is large.
+    - `weak_even_with_tolerance`: exact overlap is weak and the widest buffer still does not help much.
+    - `strict_threshold_improves_overlap`: the 50% observed threshold improves IoU without adding much area error.
+    - `stable_current_candidate`: current IoU is adequate and current area error is low.
+    - `needs_targeted_method_review`: no simple pattern explains the disagreement, so the case needs manual method review.
+
+    Thresholds are intentionally coarse review aids: current IoU of 0.35 and 0.50, buffered F1 of 0.70 and 0.80, APE of 20% and 35%, strict-method IoU gain of 0.10, and strict-method APE tolerance of 0.05.
     """)
     return
 
@@ -974,13 +1069,21 @@ def _(
     return df_disagreement_summary, df_disagreement_typology
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(df_disagreement_summary, df_disagreement_typology):
     mo.vstack(
         [
-            mo.md("### Disagreement typology summary"),
+            mo.md(r"""
+            ### Disagreement typology summary
+
+            This table shows which method-disagreement patterns are common. Large shares in `tolerance_masks_area_mismatch` or `weak_even_with_tolerance` indicate that spatial tolerance alone is not enough to make Chen reliable for those zone-scenario pairs.
+            """),
             df_disagreement_summary,
-            mo.md("### Highest-priority disagreement cases"),
+            mo.md(r"""
+            ### Highest-priority disagreement cases
+
+            Rows are sorted by a review score that emphasizes current area error, weak current overlap, improvement under buffering, and invalid current calibration. These are the first cases to inspect before changing any canonical method.
+            """),
             df_disagreement_typology.head(25),
         ]
     )
@@ -992,7 +1095,9 @@ def _():
     mo.md(r"""
     # Export exploration artifacts
 
-    These files are exploratory products only. Promoting any method into the canonical calibration workflow should happen by editing `01_calibration.py` in a later step.
+    These files are exploratory products only. They identify method-review candidates and disagreement patterns under `OUT_PATH/chen/exploration/`, but they do not alter canonical calibration, transition closure, external validation, or production model inputs.
+
+    Use the exported artifacts to decide whether a later method change is worth testing in `01_calibration.py`. Any promoted method should then be rerun through `02_transition_closure.py` and `04_external_settlement_validation.py` before it informs carbon-model inputs.
     """)
     return
 

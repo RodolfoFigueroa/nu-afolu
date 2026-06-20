@@ -31,6 +31,11 @@ with app.setup:
     )
     from nu_afolu.constants import LABEL_LIST
     from nu_afolu.external_validation import (
+        BASELINE_APE_SUPPORT_THRESHOLD,
+        BASELINE_IOU_SUPPORT_THRESHOLD,
+        GROWTH_RATIO_LOWER,
+        GROWTH_RATIO_UPPER,
+        MIN_EXTERNAL_AREA_M2,
         classify_baseline_comparator_support,
         classify_external_advisory,
         classify_growth_alignment,
@@ -46,7 +51,9 @@ def _():
     mo.md(r"""
     # External Settlement Validation
 
-    This notebook adds an independent GHSL built-up-surface check around the Chen workflow. It does not replace the GLC-FCS30D-derived observed baseline and it does not produce carbon-model inputs. Its role is advisory: test whether Chen's 2020 baseline and first future decade are credible enough, relative to independent built-up evidence, to support manual review or further calibration.
+    This notebook adds an independent GHSL built-up-surface check around the Chen workflow. It asks whether the project's 2020 settlement baseline, Chen's 2020 urban baseline, and Chen's first future decade are broadly credible relative to independent built-up evidence.
+
+    The outputs are advisory. They can strengthen, question, or prioritize rows from the transition-closure workflow, but they do not replace the GLC-FCS30D-derived observed baseline and they do not produce carbon-model inputs.
     """)
     return
 
@@ -56,12 +63,12 @@ def _():
     mo.md(r"""
     ## Provenance scope
 
-    External validation is evidence, not a new baseline.
+    External validation is evidence, not a new baseline. The notebook keeps three evidence streams separate:
 
     - Observed settlement remains the 2020 `settlements` class from the upstream GLC-FCS30D-derived `area_raster`.
-    - Chen remains the only long-range SSP-style future settlement-expansion signal in this workflow.
-    - GHSL is used here as an independent built-up-surface anchor for 2020 baseline agreement and 2020-2030 near-term plausibility.
-    - GHSL 2030 is treated as near-term plausibility evidence, not observed truth, because the product is spatially-temporally interpolated or extrapolated through 2030.
+    - Chen remains the long-range SSP-style future settlement-expansion signal in this workflow.
+    - GHSL is used only as an independent built-up-surface anchor for 2020 baseline agreement and 2020-2030 near-term plausibility.
+    - GHSL 2030 is treated as plausibility evidence, not observed truth, because the product is spatially-temporally interpolated or extrapolated through 2030.
     - Outputs are written under `OUT_PATH/chen/external_validation/` and leave all existing readiness labels unchanged.
 
     The full provenance and artifact contract is documented in `docs/data_provenance.md`.
@@ -102,19 +109,34 @@ def _():
 
 @app.cell(hide_code=True)
 def _():
+    mo.md(f"""
+    ## Validation thresholds and labels
+
+    The external checks use deliberately simple labels so the results can be read beside the transition-closure readiness table.
+
+    Baseline support compares GHSL 2020 built surface against either GLC-FCS30D 2020 settlements or Chen 2020 urban area. A comparator is labeled `insufficient_external_signal` when either side has less than {MIN_EXTERNAL_AREA_M2 / 1e6:.1f} km^2. Otherwise it is `supported` when IoU is at least {BASELINE_IOU_SUPPORT_THRESHOLD:.2f} or absolute percent error is at most {BASELINE_APE_SUPPORT_THRESHOLD:.0%}; remaining rows are `conflict`.
+
+    Growth alignment compares Chen 2020-2030 expansion with GHSL 2020-2030 built-surface growth. Chen growth below {GROWTH_RATIO_LOWER:.2f}x GHSL growth is `low_chen_growth`, Chen growth above {GROWTH_RATIO_UPPER:.1f}x GHSL growth is `high_chen_growth`, and values inside that band are `consistent`. Rows with less than {MIN_EXTERNAL_AREA_M2 / 1e6:.1f} km^2 of GHSL growth are `insufficient_external_growth`.
+
+    The final `external_advisory` label combines baseline and growth evidence: `external_support` means both checks support the closure result, `external_review` means evidence is incomplete or mixed, and `external_conflict` means GHSL points to a material disagreement.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _():
     mo.md(r"""
-    # Inputs
+    ## Inputs
     """)
     return
 
 
 @app.cell
-def _(GHSL_COLLECTION_ID):
+def _():
     out_path = Path(os.environ["OUT_PATH"])
     chen_artifact_dir = out_path / "chen"
     external_validation_dir = chen_artifact_dir / "external_validation"
     col_chen = ee.ImageCollection(CHEN_COLLECTION_ID)
-    col_ghsl = ee.ImageCollection(GHSL_COLLECTION_ID)
     return chen_artifact_dir, col_chen, external_validation_dir, out_path
 
 
@@ -247,15 +269,36 @@ def _(chen_artifact_dir, manager):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # GHSL baseline agreement
+    ## GHSL dataset semantics
 
-    The baseline comparison uses GHSL 2020 built-up surface as the external reference. For each Chen 1km cell, GHSL 100m built-up surface is summed onto Chen's grid. GLC settlement area and Chen urban area are also represented as m2 per Chen cell, and overlap is approximated as the cellwise minimum of GHSL built surface and comparator area.
+    GHSL built surface is an area estimate, not the same object as either GLC-FCS30D `settlements` or Chen binary urban extent.
+
+    - GHSL reports built-up surface area at 100m resolution.
+    - GLC-FCS30D `settlements` is this project's observed 2020 settlement baseline at 30m resolution.
+    - Chen is a 1km binary urban/non-urban SSP projection.
+
+    The notebook therefore compares all three sources in area terms on Chen's 1km grid. GHSL is not used to rewrite the baseline; it is an independent check on whether the existing baseline and Chen signal look plausible.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## GHSL baseline agreement
+
+    The baseline comparison uses GHSL 2020 built surface as the external reference. It compares GHSL against two separate 2020 comparators:
+
+    - `glc_settlements_2020`: the project's observed settlement baseline.
+    - `chen_urban_2020`: Chen's scenario-specific 2020 urban baseline.
+
+    For each Chen 1km cell, GHSL 100m built surface is summed onto Chen's grid. GLC settlement fraction and Chen urban extent are also represented as square meters per Chen cell. Overlap is approximated as the cellwise minimum of GHSL built surface and comparator area, which keeps the metric area-preserving without claiming that GHSL, GLC, and Chen identify identical pixels.
     """)
     return
 
 
 @app.cell
-def _(CHEN_SCALE_M, GHSL_BUILT_SURFACE_BAND, GHSL_COLLECTION_ID, SOURCE_YEAR):
+def _(GHSL_BUILT_SURFACE_BAND, GHSL_COLLECTION_ID, SOURCE_YEAR):
     def ghsl_built_surface_image(year: int) -> ee.Image:
         return ee.Image(f"{GHSL_COLLECTION_ID}/{year}").select(
             GHSL_BUILT_SURFACE_BAND
@@ -310,6 +353,16 @@ def _(CHEN_SCALE_M, GHSL_BUILT_SURFACE_BAND, GHSL_COLLECTION_ID, SOURCE_YEAR):
         )
 
 
+    return (
+        chen_urban_area_on_chen_grid,
+        ghsl_built_area_on_chen_grid,
+        ghsl_built_surface_image,
+        glc_settlement_area_on_chen_grid,
+    )
+
+
+@app.cell
+def _(CHEN_SCALE_M):
     def agreement_stack(
         external_area: ee.Image,
         comparator_area: ee.Image,
@@ -346,14 +399,7 @@ def _(CHEN_SCALE_M, GHSL_BUILT_SURFACE_BAND, GHSL_COLLECTION_ID, SOURCE_YEAR):
             "ape": metrics["ape"],
         }
 
-    return (
-        agreement_stack,
-        chen_urban_area_on_chen_grid,
-        ghsl_built_area_on_chen_grid,
-        ghsl_built_surface_image,
-        glc_settlement_area_on_chen_grid,
-        reduce_agreement_stack,
-    )
+    return agreement_stack, reduce_agreement_stack
 
 
 @app.cell
@@ -456,23 +502,22 @@ def _(df_external_baseline_agreement):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # GHSL 2020-2030 growth alignment
+    ## GHSL 2020-2030 growth alignment
 
-    The growth alignment compares GHSL 2020-2030 built-up-surface change against Chen's first decadal expansion. GHSL growth is independent of SSP, while Chen growth is SSP-specific. Both raw and calibrated Chen growth are kept; the calibrated row is used for the advisory review flag.
+    Growth alignment compares GHSL 2020-2030 built-surface change against Chen's first decadal expansion. GHSL growth is computed once per zone and is independent of SSP, while Chen growth is SSP-specific.
+
+    Both Chen growth variants are kept:
+
+    - `raw`: the non-settlement source area directly allocated from Chen's 2020-2030 expansion footprint.
+    - `calibrated`: the raw Chen expansion multiplied by the 2020 correction factor from the closure handoff.
+
+    The calibrated row is used for the final advisory flag because it matches the calibrated closure table. GHSL 2030 is still near-term plausibility evidence, not observed truth.
     """)
     return
 
 
 @app.cell
-def _(
-    GHSL_DATASET_NAME,
-    GHSL_SCALE_M,
-    SOURCE_YEAR,
-    VALIDATION_YEAR,
-    df_chen_expansion,
-    ghsl_built_surface_image,
-    manager,
-):
+def _(GHSL_SCALE_M, ghsl_built_surface_image):
     def ghsl_growth_image(start_year: int, end_year: int) -> ee.Image:
         return (
             ghsl_built_surface_image(end_year)
@@ -508,6 +553,18 @@ def _(
         return pd.DataFrame(rows)
 
 
+    return (reduce_ghsl_growth_by_zone,)
+
+
+@app.cell
+def _(
+    GHSL_DATASET_NAME,
+    SOURCE_YEAR,
+    VALIDATION_YEAR,
+    df_chen_expansion,
+    manager,
+    reduce_ghsl_growth_by_zone,
+):
     def build_external_growth_alignment_table(
         df_chen_expansion: pd.DataFrame,
         df_ghsl_growth: pd.DataFrame,
@@ -601,9 +658,17 @@ def _(df_external_growth_alignment):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # External review flags
+    ## External review flags
 
-    The review flag joins GHSL baseline support, GHSL growth alignment, and the existing transition-closure readiness context. These labels are advisory only; they do not demote or promote the closure notebook's readiness labels.
+    The review flag joins GHSL baseline support, GHSL growth alignment, and the existing transition-closure readiness context.
+
+    The combination happens in three steps:
+
+    1. Pivot the baseline table so each zone and SSP has separate GHSL support labels for GLC 2020 settlements and Chen 2020 urban area.
+    2. Combine those two baseline labels into `external_baseline_validation`, which records whether GHSL supports both baselines, questions one baseline, conflicts with both, or has insufficient signal.
+    3. Join the calibrated growth-alignment label and carry closure readiness fields as context.
+
+    The resulting `external_advisory` label is advisory only. It does not demote or promote `land_estimate_readiness`; it tells reviewers whether the independent GHSL evidence supports the closure result, requires external review, or conflicts with the closure result.
     """)
     return
 
@@ -730,6 +795,18 @@ def _(
     return (df_external_review_flags,)
 
 
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## Reading the external validation result
+
+    The summary table counts advisory outcomes by SSP, baseline-validation label, and calibrated growth-alignment label. It is the quickest way to see whether GHSL mostly supports the closure workflow or whether conflicts concentrate in specific scenarios.
+
+    The highest-conflict rows are the first manual-review queue. Start with rows labeled `external_conflict`, especially those with high closure APE, low closure IoU, or high calibrated Chen-to-GHSL growth ratios. Rows labeled `external_review` usually need context rather than rejection: GHSL may have too little signal, or baseline and growth evidence may disagree. Rows labeled `external_support` are strengthened by GHSL but still inherit the closure notebook's readiness status.
+    """)
+    return
+
+
 @app.cell
 def _(df_external_review_flags):
     def build_external_validation_summary(df_flags: pd.DataFrame) -> pd.DataFrame:
@@ -829,9 +906,16 @@ def _(df_external_review_flags):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # Export external validation artifacts
+    ## Export external validation artifacts
 
     These outputs are advisory validation products only. They can support manual review decisions, but they do not alter canonical calibration, transition closure, or production model inputs.
+
+    The notebook writes four artifacts under `OUT_PATH/chen/external_validation/`:
+
+    - `external_baseline_agreement.parquet`: GHSL 2020 agreement with the GLC and Chen 2020 comparators.
+    - `external_growth_alignment.parquet`: GHSL 2020-2030 growth compared with raw and calibrated Chen 2020-2030 expansion.
+    - `external_review_flags.parquet`: one advisory label per zone and SSP, joined with closure readiness context.
+    - `external_validation_summary.parquet`: scenario-level counts and medians for reporting.
     """)
     return
 

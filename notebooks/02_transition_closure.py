@@ -64,6 +64,23 @@ def _():
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
+    ## Decision pipeline
+
+    The notebook turns Chen's coarse future urban signal into reviewable diagnostic transition evidence:
+
+    1. Load the calibrated Chen handoff and observed 2020 source landscape.
+    2. Record the Chen dataset semantics and working assumptions.
+    3. Build first-expansion-year settlement scenarios by SSP and decade.
+    4. Allocate expansion onto observed 2020 source classes.
+    5. Check source-stock feasibility, recent historical growth, and sensitive source classes.
+    6. Combine those diagnostics into readiness labels, review candidates, and exported artifacts.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
     ## Historical provenance and model-input gate
 
     This notebook keeps Chen projections separate from observed land-use evidence.
@@ -74,6 +91,26 @@ def _():
     - Expected result: closure artifacts are diagnostic readiness and manual-review products. A future carbon-model input must be a separate approved subset, not `df_chen_transitions` by default.
 
     The full provenance and artifact contract is documented in `docs/data_provenance.md`.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## Dataset semantics and source assumptions
+
+    Before interpreting the diagnostics, the notebook records the exact Chen dataset semantics being used. The [GEE Community Catalog page](https://gee-community-catalog.org/projects/urban_projection/) describes the Chen et al. projection as a binary 1km urban/non-urban dataset for SSP1-SSP5 at 10-year intervals from 2020 through 2100. In this Earth Engine asset, pixel value `2` is urban and pixel value `1` is non-urban.
+
+    The Chen paper, [Global projections of future urban land expansion under shared socioeconomic pathways](https://www.nature.com/articles/s41467-020-14386-x), frames these maps as future urban land expansion scenarios, not as a complete future land-use product. The paper also treats conversion from urban back to non-urban as constrained under declining urban demand, which is consistent with this notebook's monotonic first-expansion-year accounting.
+
+    For this analysis, the working assumptions are:
+
+    - Chen `urban` is used as the closest available future analogue for this project's `settlements` class.
+    - Chen provides urban extent by decade, not annual transitions and not probabilities.
+    - The notebook estimates only future `source class -> settlements` transitions.
+    - The observed 2020 GLC-FCS30D-derived land-use raster remains the source of baseline land classes.
+    - All outputs are diagnostic. Nothing here is treated as carbon-model-ready until the adequacy checks below are reviewed.
     """)
     return
 
@@ -113,7 +150,9 @@ def _():
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # Inputs and calibration handoff
+    ## Inputs and calibration handoff
+
+    This section resolves `OUT_PATH`, opens the Chen artifact directory, and connects to the Chen Earth Engine image collection. It also reads the calibration table written by `01_calibration.py`, treating that file as an explicit handoff artifact rather than shared notebook state.
     """)
     return
 
@@ -637,26 +676,6 @@ def _(df_chen_transitions):
 
     _fig.tight_layout()
     _fig
-    return
-
-
-@app.cell(hide_code=True)
-def _():
-    mo.md(r"""
-    ## Dataset semantics and source assumptions
-
-    Before interpreting the diagnostics, the notebook records the exact Chen dataset semantics being used. The [GEE Community Catalog page](https://gee-community-catalog.org/projects/urban_projection/) describes the Chen et al. projection as a binary 1km urban/non-urban dataset for SSP1-SSP5 at 10-year intervals from 2020 through 2100. In this Earth Engine asset, pixel value `2` is urban and pixel value `1` is non-urban.
-
-    The Chen paper, [Global projections of future urban land expansion under shared socioeconomic pathways](https://www.nature.com/articles/s41467-020-14386-x), frames these maps as future urban land expansion scenarios, not as a complete future land-use product. The paper also treats conversion from urban back to non-urban as constrained under declining urban demand, which is consistent with this notebook's monotonic first-expansion-year accounting.
-
-    For this analysis, the working assumptions are:
-
-    - Chen `urban` is used as the closest available future analogue for this project's `settlements` class.
-    - Chen provides urban extent by decade, not annual transitions and not probabilities.
-    - The notebook estimates only future `source class -> settlements` transitions.
-    - The observed 2020 GLC-FCS30D-derived land-use raster remains the source of baseline land classes.
-    - All outputs are diagnostic. Nothing here is treated as carbon-model-ready until the adequacy checks below are reviewed.
-    """)
     return
 
 

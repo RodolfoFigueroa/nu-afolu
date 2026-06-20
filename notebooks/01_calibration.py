@@ -49,6 +49,24 @@ def _():
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
+    ## Notebook flow
+
+    This notebook is organized as a short calibration handoff:
+
+    1. Establish the data provenance and load the Chen and observed settlement inputs.
+    2. Align the 30m observed settlement layer to Chen's 1km grid.
+    3. Calculate baseline agreement, reliability labels, and correction factors.
+    4. Review diagnostic plots and scale-sensitivity checks.
+    5. Write calibration artifacts for `02_transition_closure.py`.
+
+    The notebook stops at adequacy diagnostics. It does not construct future transition tables or approve carbon-model inputs.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
     ## Data provenance and review contract
 
     Historical observations in this notebook come from the project's upstream GLC-FCS30D materialization, not from Chen and not from an external validation layer.
@@ -93,7 +111,9 @@ def _():
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # Paths
+    ## Artifact paths
+
+    `OUT_PATH` is the project artifact root used by the Chen notebooks. This notebook reads historical zone artifacts from that root and later writes Chen calibration outputs below `OUT_PATH/chen/`.
     """)
     return
 
@@ -107,7 +127,9 @@ def _():
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # Image collections
+    ## Chen image collection
+
+    This cell opens the Chen SSP Earth Engine image collection. Later sections decide how to align, reduce, and compare those coarse 1km urban layers against the observed 2020 settlement baseline.
     """)
     return
 
@@ -121,7 +143,9 @@ def _():
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # Load raster data
+    ## Load zone rasters
+
+    `load_chen_analysis_zones` loads the per-zone boundaries, historical `area_raster`, historical `transition_raster`, `area_table`, and Chen urban masks into `manager`. The rest of the notebook works from that shared zone manager instead of reloading inputs in each section.
     """)
     return
 

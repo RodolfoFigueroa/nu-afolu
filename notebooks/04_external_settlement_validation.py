@@ -3,26 +3,24 @@ import marimo
 __generated_with = "0.23.10"
 app = marimo.App(width="medium")
 
+with app.setup:
+    import os
+    from pathlib import Path
 
-@app.cell
-def _():
-    import os  # noqa: PLC0415
-    from pathlib import Path  # noqa: PLC0415
+    import ee
+    import marimo as mo
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+    import seaborn as sns
+    from dagster_components.partitions import zone_partitions
 
-    import ee  # noqa: PLC0415
-    import marimo as mo  # noqa: PLC0415
-    import matplotlib.pyplot as plt  # noqa: PLC0415
-    import numpy as np  # noqa: PLC0415
-    import pandas as pd  # noqa: PLC0415
-    import seaborn as sns  # noqa: PLC0415
-    from dagster_components.partitions import zone_partitions  # noqa: PLC0415
-
-    from nu_afolu.artifact_validation import (  # noqa: PLC0415
+    from nu_afolu.artifact_validation import (
         raise_for_validation_errors,
         validate_external_validation_artifacts,
         validate_transition_closure_artifacts,
     )
-    from nu_afolu.chen import (  # noqa: PLC0415
+    from nu_afolu.chen import (
         CHEN_COLLECTION_ID,
         SSP_NAMES,
         ChenAnalysisZone,
@@ -31,47 +29,20 @@ def _():
         load_chen_analysis_zones,
         observed_settlement_fraction_image,
     )
-    from nu_afolu.constants import LABEL_LIST  # noqa: PLC0415
-    from nu_afolu.external_validation import (  # noqa: PLC0415
+    from nu_afolu.constants import LABEL_LIST
+    from nu_afolu.external_validation import (
         classify_baseline_comparator_support,
         classify_external_advisory,
         classify_growth_alignment,
         combine_baseline_support,
     )
-    from nu_afolu.metrics import agreement_metrics_from_areas  # noqa: PLC0415
+    from nu_afolu.metrics import agreement_metrics_from_areas
 
     ee.Initialize()
-    return (
-        CHEN_COLLECTION_ID,
-        ChenAnalysisZone,
-        ChenAnalysisZoneCollection,
-        LABEL_LIST,
-        Path,
-        SSP_NAMES,
-        agreement_metrics_from_areas,
-        chen_urban_mask,
-        classify_baseline_comparator_support,
-        classify_external_advisory,
-        classify_growth_alignment,
-        combine_baseline_support,
-        ee,
-        load_chen_analysis_zones,
-        mo,
-        np,
-        observed_settlement_fraction_image,
-        os,
-        pd,
-        plt,
-        raise_for_validation_errors,
-        sns,
-        validate_external_validation_artifacts,
-        validate_transition_closure_artifacts,
-        zone_partitions,
-    )
 
 
-@app.cell
-def _(mo):
+@app.cell(hide_code=True)
+def _():
     mo.md(r"""
     # External Settlement Validation
 
@@ -80,8 +51,8 @@ def _(mo):
     return
 
 
-@app.cell
-def _(mo):
+@app.cell(hide_code=True)
+def _():
     mo.md(r"""
     ## Provenance scope
 
@@ -99,7 +70,7 @@ def _(mo):
 
 
 @app.cell
-def _(LABEL_LIST):
+def _():
     LABEL_MAP = dict(enumerate(LABEL_LIST, start=1))
     LABEL_ID_BY_NAME = {label: idx for idx, label in LABEL_MAP.items()}
     SETTLEMENT_IDX = LABEL_ID_BY_NAME["settlements"]
@@ -129,8 +100,8 @@ def _(LABEL_LIST):
     )
 
 
-@app.cell
-def _(mo):
+@app.cell(hide_code=True)
+def _():
     mo.md(r"""
     # Inputs
     """)
@@ -138,7 +109,7 @@ def _(mo):
 
 
 @app.cell
-def _(CHEN_COLLECTION_ID, GHSL_COLLECTION_ID, Path, ee, os):
+def _(GHSL_COLLECTION_ID):
     out_path = Path(os.environ["OUT_PATH"])
     chen_artifact_dir = out_path / "chen"
     external_validation_dir = chen_artifact_dir / "external_validation"
@@ -147,8 +118,8 @@ def _(CHEN_COLLECTION_ID, GHSL_COLLECTION_ID, Path, ee, os):
     return chen_artifact_dir, col_chen, external_validation_dir, out_path
 
 
-@app.cell
-def _(mo):
+@app.cell(hide_code=True)
+def _():
     mo.md(r"""
     ## Load zone rasters
 
@@ -158,15 +129,7 @@ def _(mo):
 
 
 @app.cell
-def _(
-    SETTLEMENT_IDX,
-    col_chen,
-    load_chen_analysis_zones,
-    mo,
-    out_path,
-    pd,
-    zone_partitions,
-):
+def _(SETTLEMENT_IDX, col_chen, out_path):
     manager, df_missing_zones = load_chen_analysis_zones(
         out_path,
         zone_partitions.get_partition_keys(),
@@ -191,8 +154,8 @@ def _(
     return (manager,)
 
 
-@app.cell
-def _(mo):
+@app.cell(hide_code=True)
+def _():
     mo.md(r"""
     ## Load diagnostic handoff artifacts
 
@@ -202,14 +165,7 @@ def _(mo):
 
 
 @app.cell
-def _(
-    chen_artifact_dir,
-    manager,
-    mo,
-    pd,
-    raise_for_validation_errors,
-    validate_transition_closure_artifacts,
-):
+def _(chen_artifact_dir, manager):
     _artifact_paths = {
         "calibration": chen_artifact_dir / "calibration.parquet",
         "chen_expansion": chen_artifact_dir / "chen_expansion.parquet",
@@ -288,8 +244,8 @@ def _(
     return df_chen_expansion, df_land_estimation_assessment
 
 
-@app.cell
-def _(mo):
+@app.cell(hide_code=True)
+def _():
     mo.md(r"""
     # GHSL baseline agreement
 
@@ -299,17 +255,7 @@ def _(mo):
 
 
 @app.cell
-def _(
-    CHEN_SCALE_M,
-    ChenAnalysisZone,
-    GHSL_BUILT_SURFACE_BAND,
-    GHSL_COLLECTION_ID,
-    SOURCE_YEAR,
-    agreement_metrics_from_areas,
-    chen_urban_mask,
-    ee,
-    observed_settlement_fraction_image,
-):
+def _(CHEN_SCALE_M, GHSL_BUILT_SURFACE_BAND, GHSL_COLLECTION_ID, SOURCE_YEAR):
     def ghsl_built_surface_image(year: int) -> ee.Image:
         return ee.Image(f"{GHSL_COLLECTION_ID}/{year}").select(
             GHSL_BUILT_SURFACE_BAND
@@ -413,17 +359,13 @@ def _(
 @app.cell
 def _(
     BASELINE_COMPARATORS,
-    ChenAnalysisZoneCollection,
     GHSL_DATASET_NAME,
     SOURCE_YEAR,
-    SSP_NAMES,
     agreement_stack,
     chen_urban_area_on_chen_grid,
-    classify_baseline_comparator_support,
     ghsl_built_area_on_chen_grid,
     glc_settlement_area_on_chen_grid,
     manager,
-    pd,
     reduce_agreement_stack,
 ):
     def build_external_baseline_agreement_table(
@@ -485,7 +427,7 @@ def _(
 
 
 @app.cell
-def _(df_external_baseline_agreement, mo):
+def _(df_external_baseline_agreement):
     _baseline_summary = (
         df_external_baseline_agreement.groupby(
             ["comparator", "scenario", "comparator_support"],
@@ -511,8 +453,8 @@ def _(df_external_baseline_agreement, mo):
     return
 
 
-@app.cell
-def _(mo):
+@app.cell(hide_code=True)
+def _():
     mo.md(r"""
     # GHSL 2020-2030 growth alignment
 
@@ -523,19 +465,13 @@ def _(mo):
 
 @app.cell
 def _(
-    ChenAnalysisZoneCollection,
     GHSL_DATASET_NAME,
     GHSL_SCALE_M,
     SOURCE_YEAR,
-    SSP_NAMES,
     VALIDATION_YEAR,
-    classify_growth_alignment,
     df_chen_expansion,
-    ee,
     ghsl_built_surface_image,
     manager,
-    np,
-    pd,
 ):
     def ghsl_growth_image(start_year: int, end_year: int) -> ee.Image:
         return (
@@ -636,7 +572,7 @@ def _(
 
 
 @app.cell
-def _(df_external_growth_alignment, mo):
+def _(df_external_growth_alignment):
     _growth_summary = (
         df_external_growth_alignment.groupby(
             ["scenario", "calibration", "growth_alignment"],
@@ -662,8 +598,8 @@ def _(df_external_growth_alignment, mo):
     return
 
 
-@app.cell
-def _(mo):
+@app.cell(hide_code=True)
+def _():
     mo.md(r"""
     # External review flags
 
@@ -674,14 +610,10 @@ def _(mo):
 
 @app.cell
 def _(
-    SSP_NAMES,
-    classify_external_advisory,
-    combine_baseline_support,
     df_external_baseline_agreement,
     df_external_growth_alignment,
     df_land_estimation_assessment,
     manager,
-    pd,
 ):
     def build_external_review_flags(
         df_baseline: pd.DataFrame,
@@ -799,7 +731,7 @@ def _(
 
 
 @app.cell
-def _(df_external_review_flags, mo, pd):
+def _(df_external_review_flags):
     def build_external_validation_summary(df_flags: pd.DataFrame) -> pd.DataFrame:
         out = (
             df_flags.groupby(
@@ -855,7 +787,7 @@ def _(df_external_review_flags, mo, pd):
 
 
 @app.cell
-def _(df_external_review_flags, np, plt, sns):
+def _(df_external_review_flags):
     _plot_df = df_external_review_flags.replace([np.inf, -np.inf], np.nan)
     _fig, _axes = plt.subplots(1, 2, figsize=(14, 5))
 
@@ -894,8 +826,8 @@ def _(df_external_review_flags, np, plt, sns):
     return
 
 
-@app.cell
-def _(mo):
+@app.cell(hide_code=True)
+def _():
     mo.md(r"""
     # Export external validation artifacts
 
@@ -913,10 +845,6 @@ def _(
     df_land_estimation_assessment,
     external_validation_dir,
     manager,
-    mo,
-    pd,
-    raise_for_validation_errors,
-    validate_external_validation_artifacts,
 ):
     _validation_report = validate_external_validation_artifacts(
         df_external_baseline_agreement,

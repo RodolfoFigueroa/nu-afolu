@@ -15,6 +15,8 @@ LABEL_LIST = (
     "wetlands",
 )
 
+TRANSITION_NODATA = 9_999
+
 with (Path(__file__).parents[2] / "transition_dict.json").open() as f:
     TRANSITION_LABEL_MAP = {int(k): v for k, v in json.load(f).items()}
 

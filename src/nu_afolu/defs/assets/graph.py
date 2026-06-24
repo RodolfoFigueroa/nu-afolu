@@ -5,7 +5,11 @@ import pandas as pd
 from dagster_components.partitions import zone_partitions
 
 import dagster as dg
-from nu_afolu.constants import LABEL_LIST, TRANSITION_LABEL_MAP
+from nu_afolu.constants import (
+    LABEL_LIST,
+    TRANSITION_LABEL_MAP,
+    TRANSITION_NODATA,
+)
 from nu_afolu.defs.resources import AFOLUClassMapResource, LabelResource
 from nu_afolu.utils import year_to_band_name
 
@@ -57,7 +61,11 @@ def generate_transition_raster(
     start_band = year_to_band_name(start_year)
     end_band = year_to_band_name(end_year)
 
-    masked = ee.Image.constant(0).rename("class").uint8()
+    masked = (
+        ee.Image.constant(TRANSITION_NODATA)
+        .rename("class")
+        .int16()
+    )
 
     img_map = {
         "croplands": croplands_img,

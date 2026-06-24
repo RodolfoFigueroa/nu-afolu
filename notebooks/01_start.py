@@ -4,14 +4,14 @@ __generated_with = "0.23.10"
 app = marimo.App(width="medium")
 
 with app.setup:
-    import ee
-    ee.Initialize()
-
-    import marimo as mo
-
     import os
     from pathlib import Path
+
+    import ee
+
     from nu_afolu.chen import load_chen_analysis_zones
+
+    ee.Initialize()
 
 
 @app.cell
@@ -28,7 +28,7 @@ def _(out_path):
 
 @app.cell
 def _(col):
-    col["01.1.01"].transition_arr
+    col.transition_arr
     return
 
 

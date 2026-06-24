@@ -161,6 +161,9 @@ Important contract details:
 - Bands: transition start years `2000` through `2021`.
 - Band meaning: band `Y` represents the transition from `Y` to `Y + 1`.
 - Pixel values: numeric transition codes from `transition_dict.json`.
+- Pixel value `9999`: no start/end AFOLU transition was assigned by the
+  current class mapping. This value is masked before transition-table
+  reductions.
 - Be careful with code `0`: in `transition_dict.json`, `0` means
   `croplands -> croplands`. It is not a generic no-data value for transition
   tables.

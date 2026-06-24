@@ -13,6 +13,7 @@ from nu_afolu.constants import (
     CHEN_YEARS,
     LABEL_LIST,
     SSP_NAMES,
+    TRANSITION_NODATA,
 )
 
 LABEL_MAP = dict(enumerate(LABEL_LIST, start=1))
@@ -408,7 +409,7 @@ def load_chen_analysis_zones(
         area_raster = area_raster.updateMask(area_raster.neq(ee.Number(0)))
         transition_raster = ee.Image(transition_raster).clip(bbox)
         transition_raster = transition_raster.updateMask(
-            transition_raster.neq(ee.Number(0)),
+            transition_raster.neq(ee.Number(TRANSITION_NODATA)),
         )
 
         manager[zone_name] = ChenAnalysisZone(

@@ -6,7 +6,11 @@ import xarray as xr
 from dagster_components.partitions import zone_partitions
 
 import dagster as dg
-from nu_afolu.constants import LABEL_LIST, TRANSITION_LABEL_MAP
+from nu_afolu.constants import (
+    LABEL_LIST,
+    TRANSITION_LABEL_MAP,
+    TRANSITION_NODATA,
+)
 
 LABEL_MAP = dict(enumerate(LABEL_LIST, start=1))
 
@@ -102,6 +106,12 @@ def generate_band_iterator(img: ee.Image) -> Iterator[dg.DynamicOutput[ee.Image]
 
 
 @dg.op
+def mask_transition_nodata(img: ee.Image) -> ee.Image:
+    nodata_mask = img.neq(ee.Number(TRANSITION_NODATA))
+    return img.updateMask(nodata_mask)
+
+
+@dg.op
 def reduce_year_band_op(
     context: dg.OpExecutionContext, img: ee.Image, bbox: ee.Geometry
 ) -> list[dict]:
@@ -122,6 +132,7 @@ def reduce_year_band_op(
             "area_m2": area,
         }
         for label, area in reduced.items()
+        if label != TRANSITION_NODATA
     ]
 
 
@@ -153,6 +164,7 @@ def aggregate_year_bands_op(reduced_list: list[list[dict]]) -> xr.DataArray:
     partitions_def=zone_partitions,
 )
 def transition_table(transition_raster: ee.Image, bbox: ee.Geometry) -> xr.DataArray:
+    transition_raster = mask_transition_nodata(transition_raster)
     band_imgs = generate_band_iterator(transition_raster)
     mapped = band_imgs.map(lambda img: reduce_year_band_op(img, bbox))
     return aggregate_year_bands_op(mapped.collect())

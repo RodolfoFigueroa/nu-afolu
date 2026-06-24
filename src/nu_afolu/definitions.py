@@ -40,10 +40,11 @@ def generate_class_map(id_map_path: os.PathLike) -> AFOLUClassMapResource:
 def defs() -> dg.Definitions:
     main_defs = dg.load_from_defs_folder(project_root=Path(__file__).parent.parent)
 
+    class_map_path = Path(__file__).parents[2] / "id_map.toml"
     path_resource = PathResource(out_path=dg.EnvVar("OUT_PATH"))
     extra_defs = dg.Definitions(
         resources={
-            "class_map_resource": generate_class_map(Path("./id_map.toml")),
+            "class_map_resource": generate_class_map(class_map_path),
             "dataframe_manager": DataFrameFileManager(
                 path_resource=path_resource, extension=".parquet"
             ),

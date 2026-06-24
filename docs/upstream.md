@@ -4,6 +4,10 @@ This document explains the observed historical artifacts that the Dagster pipeli
 writes under `OUT_PATH`. These artifacts are the project baseline for downstream
 notebooks and Chen SSP analysis.
 
+Chen-specific source provenance, compatibility checks, and future
+pseudo-transition assumptions are documented separately in
+[`docs/data_provenance.md`](data_provenance.md).
+
 The four main outputs are:
 
 | Asset | File pattern | Python object when loaded | Purpose |

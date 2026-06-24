@@ -4,6 +4,7 @@ from pathlib import Path
 import ee
 import toml
 from dagster_components.managers import (
+    DataArrayFileManager,
     DataFrameFileManager,
     EarthEngineManager,
     GeoDataFrameFileManager,
@@ -59,6 +60,9 @@ def defs() -> dg.Definitions:
             ),
             "earthengine_manager": EarthEngineManager(
                 path_resource=path_resource, extension=".json"
+            ),
+            "dataarray_manager": DataArrayFileManager(
+                path_resource=path_resource, extension=".nc"
             ),
         },
     )

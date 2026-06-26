@@ -14,7 +14,7 @@ from dagster_components.resources import PostgresResource
 import dagster as dg
 from nu_afolu.defs.resources import AFOLUClassMapResource, LabelResource, PathResource
 
-ee.Initialize()
+ee.Initialize(project=os.environ["EARTHENGINE_PROJECT"])
 
 
 def generate_class_map(id_map_path: os.PathLike) -> AFOLUClassMapResource:

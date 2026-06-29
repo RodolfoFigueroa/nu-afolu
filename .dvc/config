@@ -1,4 +1,4 @@
 [core]
     remote = data
 ['remote "data"']
-    url = azure://dvcpipelinesaccount/nu-afolu-data
+    url = azure://nu-afolu-data

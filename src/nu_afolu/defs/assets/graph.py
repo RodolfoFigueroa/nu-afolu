@@ -1,7 +1,7 @@
-from collections.abc import Iterator
+from collections.abc import Callable
+from dataclasses import dataclass
 
 import ee
-import pandas as pd
 from dagster_components.partitions import zone_partitions
 
 import dagster as dg
@@ -14,6 +14,84 @@ from nu_afolu.defs.resources import AFOLUClassMapResource, LabelResource
 from nu_afolu.utils import year_to_band_name
 
 
+@dataclass
+class MaskManager:
+    croplands: ee.Image
+    flooded: ee.Image
+    forests_mangroves: ee.Image
+    forests_primary: ee.Image
+    forests_secondary: ee.Image
+    grasslands: ee.Image
+    other: ee.Image
+    pastures: ee.Image
+    settlements: ee.Image
+    shrublands: ee.Image
+    wetlands: ee.Image
+
+    @property
+    def image_map(self) -> dict[str, ee.Image]:
+        return {name: getattr(self, name) for name in LABEL_LIST}
+
+    def generate_single_year_area_raster(
+        self,
+        year: int,
+    ) -> ee.Image:
+        band = year_to_band_name(year)
+
+        out_img = ee.image.Image.constant(0).rename("class").uint8()
+        for i, label in enumerate(LABEL_LIST):
+            out_img = out_img.where(
+                self.image_map[label].select(band).rename("class"),
+                ee.Number(i + 1),
+            )
+
+        source_mask = next(iter(self.image_map.values())).select(band).mask()
+        return out_img.updateMask(source_mask)
+
+    def generate_single_year_transition_raster(
+        self,
+        start_year: int,
+    ) -> ee.Image:
+        end_year = start_year + 1
+        start_band = year_to_band_name(start_year)
+        end_band = year_to_band_name(end_year)
+
+        masked = ee.Image.constant(TRANSITION_NODATA).rename("class").int16()
+
+        transition_label_map_inv = {
+            tuple(value): int(key) for key, value in TRANSITION_LABEL_MAP.items()
+        }
+
+        for start_label, start_img in self.image_map.items():
+            for end_label, end_img in self.image_map.items():
+                a: ee.Image = start_img.select(start_band).rename("class")
+                b: ee.Image = end_img.select(end_band).rename("class")
+
+                masked = masked.where(
+                    a.And(b),
+                    ee.Number(transition_label_map_inv[(start_label, end_label)]),
+                )
+
+        return masked
+
+    def generate_area_raster(self, native_proj: ee.Projection) -> ee.Image:
+        return stack_rasters_into_bands(
+            [self.generate_single_year_area_raster(year) for year in range(2000, 2022)],
+            native_proj,
+        )
+
+    def generate_transition_raster(self, native_proj: ee.Projection) -> ee.Image:
+        stacked = stack_rasters_into_bands(
+            [
+                self.generate_single_year_transition_raster(year)
+                for year in range(2000, 2021)
+            ],
+            native_proj,
+        )
+        nodata_mask = stacked.neq(ee.Number(TRANSITION_NODATA))
+        return stacked.updateMask(nodata_mask)
+
+
 def get_single_image_from_collection(col: ee.ImageCollection) -> ee.Image:
     size = col.size().getInfo()
 
@@ -23,88 +101,35 @@ def get_single_image_from_collection(col: ee.ImageCollection) -> ee.Image:
     if size == 0:
         err = "No images found in the specified bounding box."
         raise ValueError(err)
-    if size > 1:
-        err = f"Expected 1 image, found {size} images in the specified bounding box."
-        raise ValueError(err)
-    return col.first()
+
+    if size == 1:
+        out = col.first()
+    else:
+        native_proj = ee.Image(col.first()).projection()
+        out = col.sort("system:index").mosaic().setDefaultProjection(native_proj)
+
+    return out
 
 
-@dg.op
-def load_glc30(bbox: ee.geometry.Geometry) -> ee.image.Image:
-    filtered = ee.imagecollection.ImageCollection(
+def load_glc30(bbox: ee.Geometry | ee.ComputedObject) -> ee.Image:
+    filtered = ee.ImageCollection(
         "projects/sat-io/open-datasets/GLC-FCS30D/annual",
-    ).filterBounds(bbox)
-    return get_single_image_from_collection(filtered)
+    ).filterBounds(bbox)  # ty:ignore[invalid-argument-type]
+
+    glc30 = get_single_image_from_collection(filtered)
+    valid = glc30.neq(ee.Number(0)).And(glc30.neq(ee.Number(250)))
+
+    return glc30.updateMask(valid)
 
 
-@dg.op
-def get_native_projection(glc30: ee.image.Image) -> ee.projection.Projection:
+def get_native_projection(glc30: ee.Image) -> ee.projection.Projection:
     return glc30.projection()
-
-
-@dg.op
-def generate_transition_raster(
-    start_year: int,
-    croplands_img: ee.Image,
-    flooded_img: ee.Image,
-    forests_mangroves_img: ee.Image,
-    forests_primary_img: ee.Image,
-    forests_secondary_img: ee.Image,
-    grasslands_img: ee.Image,
-    other_img: ee.Image,
-    pastures_img: ee.Image,
-    settlements_img: ee.Image,
-    shrublands_img: ee.Image,
-    wetlands_img: ee.Image,
-) -> ee.Image:
-    end_year = start_year + 1
-    start_band = year_to_band_name(start_year)
-    end_band = year_to_band_name(end_year)
-
-    masked = (
-        ee.Image.constant(TRANSITION_NODATA)
-        .rename("class")
-        .int16()
-    )
-
-    img_map = {
-        "croplands": croplands_img,
-        "flooded": flooded_img,
-        "forests_mangroves": forests_mangroves_img,
-        "forests_primary": forests_primary_img,
-        "forests_secondary": forests_secondary_img,
-        "grasslands": grasslands_img,
-        "other": other_img,
-        "pastures": pastures_img,
-        "settlements": settlements_img,
-        "shrublands": shrublands_img,
-        "wetlands": wetlands_img,
-    }
-
-    transition_label_map_inv = {
-        tuple(value): int(key) for key, value in TRANSITION_LABEL_MAP.items()
-    }
-
-    for start_label, start_img in img_map.items():
-        for end_label, end_img in img_map.items():
-            a: ee.Image = start_img.select(start_band).rename("class")
-            b: ee.Image = end_img.select(end_band).rename("class")
-
-            masked = masked.where(
-                a.And(b),
-                ee.Number(transition_label_map_inv[(start_label, end_label)]),
-            )
-
-    return masked
 
 
 def class_mask_op_factory(
     class_name: str,
-) -> dg.OpDefinition:
-    @dg.op(
-        name=f"generate_{class_name}_mask",
-    )
-    def _op(
+) -> Callable[[AFOLUClassMapResource, ee.Image], ee.Image]:
+    def _f(
         class_map_resource: AFOLUClassMapResource,
         glc30: ee.Image,
     ) -> ee.Image:
@@ -123,10 +148,23 @@ def class_mask_op_factory(
 
         return mask
 
-    return _op
+    return _f
 
 
-@dg.op
+CLASS_MASK_FUNC_MAP = {
+    name: class_mask_op_factory(name)
+    for name in [
+        "croplands",
+        "flooded",
+        "forests_mangroves",
+        "other",
+        "settlements",
+        "shrublands",
+        "wetlands",
+    ]
+}
+
+
 def generate_random_grasslands_to_pastures_discriminator(
     glc30: ee.Image,
 ) -> ee.Image:
@@ -143,7 +181,6 @@ def generate_random_grasslands_to_pastures_discriminator(
     )
 
 
-@dg.op
 def merge_grasslands(
     grasslands_to_pastures_img: ee.Image,
     grasslands_img: ee.Image,
@@ -154,7 +191,6 @@ def merge_grasslands(
     ).Or(grasslands_img)
 
 
-@dg.op
 def get_forest_discriminator(bbox: ee.Geometry) -> ee.Image:
     filtered = ee.ImageCollection(
         "NASA/ORNL/global_forest_classification_2020/V1",
@@ -163,7 +199,6 @@ def get_forest_discriminator(bbox: ee.Geometry) -> ee.Image:
     return img.unmask(ee.Number(0)).eq(ee.Number(1))
 
 
-@dg.op
 def get_forests_primary_mask(
     forests_img: ee.Image,
     forests_discriminator: ee.Image,
@@ -171,7 +206,6 @@ def get_forests_primary_mask(
     return forests_img.And(forests_discriminator)
 
 
-@dg.op
 def get_forests_secondary_mask(
     forests_img: ee.Image,
     forests_discriminator: ee.Image,
@@ -179,7 +213,6 @@ def get_forests_secondary_mask(
     return forests_img.And(forests_discriminator.Not())
 
 
-@dg.op
 def get_pastures_mask(
     grasslands_to_pastures_img: ee.Image,
     pastures_random_discriminator: ee.Image,
@@ -187,54 +220,6 @@ def get_pastures_mask(
     return grasslands_to_pastures_img.And(pastures_random_discriminator)
 
 
-@dg.op(out=dg.DynamicOut(dagster_type=int))
-def generate_glc_fcs_years() -> Iterator[dg.DynamicOutput[int]]:
-    for year in range(2000, 2022):
-        yield dg.DynamicOutput(year, mapping_key=str(year))
-
-
-@dg.op
-def generate_area_raster(
-    year: int,
-    croplands_img: ee.image.Image,
-    flooded_img: ee.image.Image,
-    forests_mangroves_img: ee.image.Image,
-    forests_primary_img: ee.image.Image,
-    forests_secondary_img: ee.image.Image,
-    grasslands_img: ee.image.Image,
-    other_img: ee.image.Image,
-    pastures_img: ee.image.Image,
-    settlements_img: ee.image.Image,
-    shrublands_img: ee.image.Image,
-    wetlands_img: ee.image.Image,
-) -> ee.image.Image:
-    band = year_to_band_name(year)
-
-    img_map = {
-        "croplands": croplands_img,
-        "flooded": flooded_img,
-        "forests_mangroves": forests_mangroves_img,
-        "forests_primary": forests_primary_img,
-        "forests_secondary": forests_secondary_img,
-        "grasslands": grasslands_img,
-        "other": other_img,
-        "pastures": pastures_img,
-        "settlements": settlements_img,
-        "shrublands": shrublands_img,
-        "wetlands": wetlands_img,
-    }
-
-    out_img = ee.image.Image.constant(0).rename("class").uint8()
-    for i, label in enumerate(LABEL_LIST):
-        out_img = out_img.where(
-            img_map[label].select(band).rename("class"),
-            ee.Number(i + 1),
-        )
-
-    return out_img
-
-
-@dg.op(out=dg.Out(io_manager_key="earthengine_manager"))
 def stack_rasters_into_bands(
     rasters: list[ee.Image],
     projection: ee.projection.Projection,
@@ -247,22 +232,26 @@ def stack_rasters_into_bands(
     )
 
 
-@dg.graph_multi_asset(
-    ins={
-        "bbox": dg.AssetIn(["bbox", "ee"]),
-    },
-    outs={"area_raster": dg.AssetOut(), "transition_raster": dg.AssetOut()},
-    partitions_def=zone_partitions,
-    group_name="class_mask_graph",
-)
-def build_glc_fcs_zone_rasters(bbox: ee.Geometry) -> dict[str, pd.DataFrame]:
-    glc30 = load_glc30(bbox)
-    native_proj = get_native_projection(glc30)
+def build_forests(
+    class_map_resource: AFOLUClassMapResource, glc30: ee.Image, bbox: ee.Geometry
+) -> tuple[ee.Image, ee.Image]:
+    forests_base = class_mask_op_factory("forests")(class_map_resource, glc30)
+    forests_discriminator = get_forest_discriminator(bbox)
+    forests_primary = get_forests_primary_mask(forests_base, forests_discriminator)
+    forests_secondary = get_forests_secondary_mask(forests_base, forests_discriminator)
 
-    grasslands_base = class_mask_op_factory("grasslands")(glc30)
+    return forests_primary, forests_secondary
+
+
+def build_grasslands_and_pastures(
+    class_map_resource: AFOLUClassMapResource, glc30: ee.Image
+) -> tuple[ee.Image, ee.Image]:
+    grasslands_base = class_mask_op_factory("grasslands")(class_map_resource, glc30)
     grasslands_to_pastures_mask = class_mask_op_factory("grasslands_to_pastures")(
+        class_map_resource,
         glc30,
     )
+
     random_grasslands_to_pastures_discriminator = (
         generate_random_grasslands_to_pastures_discriminator(glc30)
     )
@@ -272,63 +261,85 @@ def build_glc_fcs_zone_rasters(bbox: ee.Geometry) -> dict[str, pd.DataFrame]:
         grasslands_base,
         random_grasslands_to_pastures_discriminator,
     )
+
     pastures = get_pastures_mask(
         grasslands_to_pastures_mask,
         random_grasslands_to_pastures_discriminator,
     )
 
-    forests_base = class_mask_op_factory("forests")(glc30)
-    forests_discriminator = get_forest_discriminator(bbox)
-    forests_primary = get_forests_primary_mask(forests_base, forests_discriminator)
-    forests_secondary = get_forests_secondary_mask(forests_base, forests_discriminator)
+    return grasslands, pastures
 
-    croplands = class_mask_op_factory("croplands")(glc30)
-    flooded = class_mask_op_factory("flooded")(glc30)
-    forests_mangroves = class_mask_op_factory("forests_mangroves")(glc30)
-    other = class_mask_op_factory("other")(glc30)
-    settlements = class_mask_op_factory("settlements")(glc30)
-    shrublands = class_mask_op_factory("shrublands")(glc30)
-    wetlands = class_mask_op_factory("wetlands")(glc30)
 
-    wanted_years = generate_glc_fcs_years()
+def get_all_class_masks(
+    class_map_resource: AFOLUClassMapResource,
+    glc30: ee.Image,
+    bbox: ee.Geometry | ee.ComputedObject,
+) -> MaskManager:
+    grasslands, pastures = build_grasslands_and_pastures(class_map_resource, glc30)
+    forests_primary, forests_secondary = build_forests(class_map_resource, glc30, bbox)  # ty:ignore[invalid-argument-type]
 
-    transition_rasters = wanted_years.map(
-        lambda year: generate_transition_raster(
-            year,
-            croplands_img=croplands,
-            flooded_img=flooded,
-            forests_mangroves_img=forests_mangroves,
-            forests_primary_img=forests_primary,
-            forests_secondary_img=forests_secondary,
-            grasslands_img=grasslands,
-            other_img=other,
-            pastures_img=pastures,
-            settlements_img=settlements,
-            shrublands_img=shrublands,
-            wetlands_img=wetlands,
-        )
+    return MaskManager(
+        **{
+            "grasslands": grasslands,
+            "pastures": pastures,
+            "forests_primary": forests_primary,
+            "forests_secondary": forests_secondary,
+            **{
+                name: CLASS_MASK_FUNC_MAP[name](class_map_resource, glc30)
+                for name in CLASS_MASK_FUNC_MAP
+            },
+        }
     )
 
-    area_rasters = wanted_years.map(
-        lambda year: generate_area_raster(
-            year=year,
-            croplands_img=croplands,
-            flooded_img=flooded,
-            forests_mangroves_img=forests_mangroves,
-            forests_primary_img=forests_primary,
-            forests_secondary_img=forests_secondary,
-            grasslands_img=grasslands,
-            other_img=other,
-            pastures_img=pastures,
-            settlements_img=settlements,
-            shrublands_img=shrublands,
-            wetlands_img=wetlands,
-        )
+
+@dg.multi_asset(
+    ins={
+        "bbox": dg.AssetIn(["bbox", "ee"]),
+    },
+    outs={
+        "area_raster": dg.AssetOut(io_manager_key="earthengine_manager"),
+        "transition_raster": dg.AssetOut(io_manager_key="earthengine_manager"),
+    },
+    partitions_def=zone_partitions,
+    group_name="class_mask_graph",
+)
+def rasters(
+    class_map_resource: AFOLUClassMapResource, bbox: ee.Geometry
+) -> tuple[ee.Image, ee.Image]:
+    glc30 = load_glc30(bbox)
+    native_proj = get_native_projection(glc30)
+    mask_manager = get_all_class_masks(class_map_resource, glc30, bbox)
+
+    return mask_manager.generate_area_raster(
+        native_proj
+    ), mask_manager.generate_transition_raster(
+        native_proj,
     )
 
-    return {
-        "area_raster": stack_rasters_into_bands(area_rasters.collect(), native_proj),
-        "transition_raster": stack_rasters_into_bands(
-            transition_rasters.collect(), native_proj
+
+@dg.multi_asset(
+    ins={
+        "bbox": dg.AssetIn(["bbox", "ee", "large"]),
+    },
+    outs={
+        "area_raster": dg.AssetOut(
+            key=["area_raster", "large"], io_manager_key="earthengine_manager"
         ),
-    }
+        "transition_raster": dg.AssetOut(
+            key=["transition_raster", "large"], io_manager_key="earthengine_manager"
+        ),
+    },
+    group_name="class_mask_graph",
+)
+def rasters_large(
+    class_map_resource: AFOLUClassMapResource, bbox: ee.ComputedObject
+) -> tuple[ee.Image, ee.Image]:
+    glc30 = load_glc30(bbox)
+    native_proj = get_native_projection(glc30)
+    mask_manager = get_all_class_masks(class_map_resource, glc30, bbox)
+
+    return mask_manager.generate_area_raster(
+        native_proj
+    ), mask_manager.generate_transition_raster(
+        native_proj,
+    )

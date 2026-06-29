@@ -102,7 +102,7 @@ def _(LABEL_LIST, Path, UTC, datetime, os, pd):
     NEGATIVE_DELTA_POLICY = "clip_to_zero_and_record"
     INTERVAL_SEMANTICS = "decadal_start_year"
     SAVE_DIAGNOSTIC_ARTIFACTS = True
-    OUTPUT_ROOT = PROJECT_ROOT / "outputs" / "chen_pseudo_tables"
+    OUTPUT_ROOT = PROJECT_ROOT / "data" / "chen_pseudo_tables"
     DIAGNOSTIC_RUN_LABEL = "latest"
 
     # Explicitly carried forward from 03_spatial_resolution_diagnostics.py.
@@ -138,8 +138,9 @@ def _(LABEL_LIST, Path, UTC, datetime, os, pd):
         "wetlands",
         "flooded",
     )
-    NON_SETTLEMENT_LABELS = tuple(_label for _label in LABEL_LIST if _label != "settlements")
-
+    NON_SETTLEMENT_LABELS = tuple(
+        _label for _label in LABEL_LIST if _label != "settlements"
+    )
 
     def read_dotenv_value(path: Path, key: str) -> str | None:
         if not path.exists():
@@ -155,7 +156,6 @@ def _(LABEL_LIST, Path, UTC, datetime, os, pd):
 
         return None
 
-
     _out_path_raw = os.environ.get(OUT_PATH_KEY)
     OUT_PATH_SOURCE = "environment variable"
     if not _out_path_raw:
@@ -168,12 +168,36 @@ def _(LABEL_LIST, Path, UTC, datetime, os, pd):
 
     configuration_summary = pd.DataFrame(
         [
-            {"setting": OUT_PATH_KEY, "value": str(OUT_PATH) if OUT_PATH else "not configured", "source": OUT_PATH_SOURCE},
-            {"setting": "BASELINE_YEAR", "value": BASELINE_YEAR, "source": "analysis contract"},
-            {"setting": "ALLOCATION_METHODS", "value": ", ".join(ALLOCATION_METHODS), "source": "pseudo_transition_methods.md"},
-            {"setting": "OUTPUT_ROOT", "value": str(OUTPUT_ROOT), "source": "repo-local diagnostic output"},
-            {"setting": "SAVE_DIAGNOSTIC_ARTIFACTS", "value": SAVE_DIAGNOSTIC_ARTIFACTS, "source": "notebook default"},
-            {"setting": "VALIDATION_TOLERANCE_M2", "value": VALIDATION_TOLERANCE_M2, "source": "notebook default"},
+            {
+                "setting": OUT_PATH_KEY,
+                "value": str(OUT_PATH) if OUT_PATH else "not configured",
+                "source": OUT_PATH_SOURCE,
+            },
+            {
+                "setting": "BASELINE_YEAR",
+                "value": BASELINE_YEAR,
+                "source": "analysis contract",
+            },
+            {
+                "setting": "ALLOCATION_METHODS",
+                "value": ", ".join(ALLOCATION_METHODS),
+                "source": "pseudo_transition_methods.md",
+            },
+            {
+                "setting": "OUTPUT_ROOT",
+                "value": str(OUTPUT_ROOT),
+                "source": "repo-local diagnostic output",
+            },
+            {
+                "setting": "SAVE_DIAGNOSTIC_ARTIFACTS",
+                "value": SAVE_DIAGNOSTIC_ARTIFACTS,
+                "source": "notebook default",
+            },
+            {
+                "setting": "VALIDATION_TOLERANCE_M2",
+                "value": VALIDATION_TOLERANCE_M2,
+                "source": "notebook default",
+            },
         ]
     )
 
@@ -226,7 +250,10 @@ def _(OUT_PATH, Path, pd, zone_partitions):
     REQUIRED_ARTIFACT_SPECS = {
         "bbox_ee": {"relative_dir": Path("bbox") / "ee", "extension": ".json"},
         "area_table": {"relative_dir": Path("area_table"), "extension": ".parquet"},
-        "transition_table": {"relative_dir": Path("transition_table"), "extension": ".nc"},
+        "transition_table": {
+            "relative_dir": Path("transition_table"),
+            "extension": ".nc",
+        },
     }
 
     partition_zone_names = tuple(zone_partitions.get_partition_keys())
@@ -252,16 +279,30 @@ def _(OUT_PATH, Path, pd, zone_partitions):
 
     input_zone_inventory = pd.DataFrame(_zone_rows)
     candidate_zone_names = tuple(
-        input_zone_inventory.loc[input_zone_inventory["complete_required_inputs"], "zone"]
+        input_zone_inventory.loc[
+            input_zone_inventory["complete_required_inputs"], "zone"
+        ]
     )
 
     input_zone_summary = pd.DataFrame(
         [
             {"metric": "canonical partition zones", "value": len(partition_zone_names)},
-            {"metric": "zones with required inputs", "value": len(candidate_zone_names)},
-            {"metric": "bbox/ee files discovered", "value": len(artifact_zone_sets["bbox_ee"])},
-            {"metric": "area_table files discovered", "value": len(artifact_zone_sets["area_table"])},
-            {"metric": "transition_table files discovered", "value": len(artifact_zone_sets["transition_table"])},
+            {
+                "metric": "zones with required inputs",
+                "value": len(candidate_zone_names),
+            },
+            {
+                "metric": "bbox/ee files discovered",
+                "value": len(artifact_zone_sets["bbox_ee"]),
+            },
+            {
+                "metric": "area_table files discovered",
+                "value": len(artifact_zone_sets["area_table"]),
+            },
+            {
+                "metric": "transition_table files discovered",
+                "value": len(artifact_zone_sets["transition_table"]),
+            },
         ]
     )
 
@@ -279,7 +320,6 @@ def _(BASELINE_YEAR, LABEL_LIST, OUT_PATH, candidate_zone_names, np, pd, xr):
         normalized = normalized.apply(pd.to_numeric, errors="coerce").fillna(0.0)
         return normalized.sort_index()
 
-
     loaded_area_tables = {}
     loaded_transition_tables = {}
     _load_error_rows = []
@@ -288,14 +328,20 @@ def _(BASELINE_YEAR, LABEL_LIST, OUT_PATH, candidate_zone_names, np, pd, xr):
         _area_path = OUT_PATH / "area_table" / f"{_zone_name}.parquet"
         _transition_path = OUT_PATH / "transition_table" / f"{_zone_name}.nc"
         try:
-            loaded_area_tables[_zone_name] = normalize_area_table(pd.read_parquet(_area_path))
+            loaded_area_tables[_zone_name] = normalize_area_table(
+                pd.read_parquet(_area_path)
+            )
         except Exception as _exc:  # noqa: BLE001
-            _load_error_rows.append({"zone": _zone_name, "artifact": "area_table", "error": str(_exc)})
+            _load_error_rows.append(
+                {"zone": _zone_name, "artifact": "area_table", "error": str(_exc)}
+            )
 
         try:
             loaded_transition_tables[_zone_name] = xr.load_dataarray(_transition_path)
         except Exception as _exc:  # noqa: BLE001
-            _load_error_rows.append({"zone": _zone_name, "artifact": "transition_table", "error": str(_exc)})
+            _load_error_rows.append(
+                {"zone": _zone_name, "artifact": "transition_table", "error": str(_exc)}
+            )
 
     loaded_zone_names = tuple(
         _zone_name
@@ -309,13 +355,22 @@ def _(BASELINE_YEAR, LABEL_LIST, OUT_PATH, candidate_zone_names, np, pd, xr):
     for _zone_name in loaded_zone_names:
         _area = loaded_area_tables[_zone_name]
         if BASELINE_YEAR not in _area.index:
-            _baseline_error_rows.append({"zone": _zone_name, "error": f"missing {BASELINE_YEAR} area row"})
+            _baseline_error_rows.append(
+                {"zone": _zone_name, "error": f"missing {BASELINE_YEAR} area row"}
+            )
             continue
         _baseline = _area.loc[BASELINE_YEAR].astype(float)
         if not np.isfinite(_baseline.to_numpy()).all() or (_baseline < 0).any():
-            _baseline_error_rows.append({"zone": _zone_name, "error": "invalid baseline values"})
+            _baseline_error_rows.append(
+                {"zone": _zone_name, "error": "invalid baseline values"}
+            )
             continue
-        _baseline_rows.append({"zone": _zone_name, **{_label: float(_baseline[_label]) for _label in LABEL_LIST}})
+        _baseline_rows.append(
+            {
+                "zone": _zone_name,
+                **{_label: float(_baseline[_label]) for _label in LABEL_LIST},
+            }
+        )
 
     baseline_area_by_zone = pd.DataFrame(_baseline_rows)
     baseline_load_errors = pd.DataFrame(_baseline_error_rows, columns=["zone", "error"])
@@ -324,8 +379,14 @@ def _(BASELINE_YEAR, LABEL_LIST, OUT_PATH, candidate_zone_names, np, pd, xr):
     load_summary = pd.DataFrame(
         [
             {"metric": "candidate zones", "value": len(candidate_zone_names)},
-            {"metric": "zones with both historical tables loaded", "value": len(loaded_zone_names)},
-            {"metric": "zones with usable 2020 baseline", "value": len(allocation_zone_names)},
+            {
+                "metric": "zones with both historical tables loaded",
+                "value": len(loaded_zone_names),
+            },
+            {
+                "metric": "zones with usable 2020 baseline",
+                "value": len(allocation_zone_names),
+            },
             {"metric": "table load errors", "value": len(load_errors)},
             {"metric": "baseline load errors", "value": len(baseline_load_errors)},
         ]
@@ -346,7 +407,9 @@ def _(baseline_load_errors, load_errors, pd):
     pd.concat(
         [
             load_errors.assign(error_type="table_load"),
-            baseline_load_errors.assign(artifact="area_table", error_type="baseline_load"),
+            baseline_load_errors.assign(
+                artifact="area_table", error_type="baseline_load"
+            ),
         ],
         ignore_index=True,
     )
@@ -387,7 +450,6 @@ def _(
         )
         return frame.assign(zone=zone_name).loc[:, ["zone", "year", "start", "area_m2"]]
 
-
     _new_transition_frames = [
         transition_slice_to_frame(
             _zone_name,
@@ -407,8 +469,16 @@ def _(
         [
             {"metric": "zones", "value": new_settlement_transitions["zone"].nunique()},
             {"metric": "new transition rows", "value": len(new_settlement_transitions)},
-            {"metric": "rows with positive new settlement area", "value": int(new_settlement_transitions["has_new_settlement_transition"].sum())},
-            {"metric": "total new settlement area ha", "value": float(new_settlement_transitions["area_ha"].sum())},
+            {
+                "metric": "rows with positive new settlement area",
+                "value": int(
+                    new_settlement_transitions["has_new_settlement_transition"].sum()
+                ),
+            },
+            {
+                "metric": "total new settlement area ha",
+                "value": float(new_settlement_transitions["area_ha"].sum()),
+            },
         ]
     )
 
@@ -436,13 +506,14 @@ def _(
         .reset_index()
         .rename(columns={"start": "source_class", "area_m2": "new_settlement_area_m2"})
     )
-    source_area_by_zone["zone_total_new_settlement_m2"] = source_area_by_zone.groupby("zone")[
-        "new_settlement_area_m2"
-    ].transform("sum")
+    source_area_by_zone["zone_total_new_settlement_m2"] = source_area_by_zone.groupby(
+        "zone"
+    )["new_settlement_area_m2"].transform("sum")
     source_area_by_zone = source_area_by_zone.assign(
         source_share=np.where(
             source_area_by_zone["zone_total_new_settlement_m2"] > 0,
-            source_area_by_zone["new_settlement_area_m2"] / source_area_by_zone["zone_total_new_settlement_m2"],
+            source_area_by_zone["new_settlement_area_m2"]
+            / source_area_by_zone["zone_total_new_settlement_m2"],
             0.0,
         ),
         high_spatial_risk=lambda _df: _df["zone"].isin(HIGH_SPATIAL_RISK_ZONE_NAMES),
@@ -465,12 +536,16 @@ def _(
     pooled_non_risk_total_new_settlement_m2 = float(
         pooled_source_prior_excluding_high_risk["new_settlement_area_m2"].sum()
     )
-    pooled_source_prior_excluding_high_risk = pooled_source_prior_excluding_high_risk.assign(
-        source_share=lambda _df: _df["new_settlement_area_m2"] / pooled_non_risk_total_new_settlement_m2
-        if pooled_non_risk_total_new_settlement_m2
-        else 0.0,
-        prior_scope="excluding_high_spatial_risk_zones",
-    ).sort_values("source_share", ascending=False)
+    pooled_source_prior_excluding_high_risk = (
+        pooled_source_prior_excluding_high_risk.assign(
+            source_share=lambda _df: (
+                _df["new_settlement_area_m2"] / pooled_non_risk_total_new_settlement_m2
+                if pooled_non_risk_total_new_settlement_m2
+                else 0.0
+            ),
+            prior_scope="excluding_high_spatial_risk_zones",
+        ).sort_values("source_share", ascending=False)
+    )
 
     source_availability_2020 = baseline_area_by_zone.melt(
         id_vars="zone",
@@ -485,8 +560,12 @@ def _(
         how="left",
     )
     source_availability_with_shares = source_availability_with_shares.assign(
-        common_historical_source=lambda _df: _df["source_share"] >= COMMON_SOURCE_SHARE_THRESHOLD,
-        scarce_in_baseline=lambda _df: _df["baseline_source_area_m2"].fillna(0) < CHEN_PIXEL_AREA_M2,
+        common_historical_source=lambda _df: (
+            _df["source_share"] >= COMMON_SOURCE_SHARE_THRESHOLD
+        ),
+        scarce_in_baseline=lambda _df: (
+            _df["baseline_source_area_m2"].fillna(0) < CHEN_PIXEL_AREA_M2
+        ),
     )
     scarce_common_sources = source_availability_with_shares.loc[
         source_availability_with_shares["common_historical_source"]
@@ -498,17 +577,32 @@ def _(
         new_settlement_transitions.groupby("zone", dropna=False)
         .agg(
             total_new_settlement_m2=("area_m2", "sum"),
-            active_year_count=("area_m2", lambda _series: int((_series > 0).groupby(new_settlement_transitions.loc[_series.index, "year"]).any().sum())),
+            active_year_count=(
+                "area_m2",
+                lambda _series: int(
+                    (_series > 0)
+                    .groupby(new_settlement_transitions.loc[_series.index, "year"])
+                    .any()
+                    .sum()
+                ),
+            ),
             positive_source_year_rows=("has_new_settlement_transition", "sum"),
         )
         .reset_index()
     )
 
     dominant_source_by_zone = (
-        historical_source_share_by_zone.sort_values(["zone", "source_share"], ascending=[True, False])
+        historical_source_share_by_zone.sort_values(
+            ["zone", "source_share"], ascending=[True, False]
+        )
         .groupby("zone", as_index=False)
         .first()
-        .rename(columns={"source_class": "dominant_source_class", "source_share": "dominant_source_share"})
+        .rename(
+            columns={
+                "source_class": "dominant_source_class",
+                "source_share": "dominant_source_share",
+            }
+        )
         .loc[:, ["zone", "dominant_source_class", "dominant_source_share"]]
     )
     scarce_common_count_by_zone = (
@@ -522,11 +616,14 @@ def _(
         zone_prior_base.merge(dominant_source_by_zone, on="zone", how="left")
         .merge(scarce_common_count_by_zone, on="zone", how="left")
         .assign(
-            scarce_common_source_count=lambda _df: _df["scarce_common_source_count"].fillna(0).astype(int),
-            high_spatial_risk=lambda _df: _df["zone"].isin(HIGH_SPATIAL_RISK_ZONE_NAMES),
+            scarce_common_source_count=lambda _df: (
+                _df["scarce_common_source_count"].fillna(0).astype(int)
+            ),
+            high_spatial_risk=lambda _df: _df["zone"].isin(
+                HIGH_SPATIAL_RISK_ZONE_NAMES
+            ),
         )
     )
-
 
     def assign_prior_quality_status(row: pd.Series) -> str:
         if row["total_new_settlement_m2"] <= 0:
@@ -543,7 +640,6 @@ def _(
         if row["scarce_common_source_count"] > 0:
             return "zone_specific_with_availability_warning"
         return "zone_specific_candidate"
-
 
     zone_prior_quality = zone_prior_quality.assign(
         total_new_settlement_ha=lambda _df: _df["total_new_settlement_m2"] / 10_000.0,
@@ -597,7 +693,10 @@ def _(
         [
             {"field": "collection", "value": CHEN_COLLECTION_ID},
             {"field": "urban pixel value", "value": CHEN_URBAN_VALUE},
-            {"field": "projection years", "value": ", ".join(str(_year) for _year in CHEN_YEARS)},
+            {
+                "field": "projection years",
+                "value": ", ".join(str(_year) for _year in CHEN_YEARS),
+            },
             {"field": "scenarios", "value": ", ".join(SSP_NAMES)},
         ]
     )
@@ -624,14 +723,15 @@ def _(CHEN_COLLECTION_ID, CHEN_YEARS, SSP_NAMES, ee, pd):
         message = str(exc).replace("\n", " ")
         return message[:500] + ("..." if len(message) > 500 else "")
 
-
     try:
         ee.Initialize()
         chen_collection = ee.ImageCollection(CHEN_COLLECTION_ID)
         chen_collection_size = int(chen_collection.size().getInfo())
         _first_image = ee.Image(chen_collection.toList(chen_collection_size).get(0))
         chen_first_image_band_names = tuple(_first_image.bandNames().getInfo())
-        chen_source_ready = chen_collection_size >= len(CHEN_YEARS) and set(SSP_NAMES).issubset(chen_first_image_band_names)
+        chen_source_ready = chen_collection_size >= len(CHEN_YEARS) and set(
+            SSP_NAMES
+        ).issubset(chen_first_image_band_names)
         chen_source_error = ""
     except Exception as _exc:  # noqa: BLE001
         chen_collection = None
@@ -646,7 +746,9 @@ def _(CHEN_COLLECTION_ID, CHEN_YEARS, SSP_NAMES, ee, pd):
                 "collection_size": chen_collection_size,
                 "expected_year_count": len(CHEN_YEARS),
                 "first_image_band_names": ", ".join(chen_first_image_band_names),
-                "expected_ssp_bands_present": set(SSP_NAMES).issubset(chen_first_image_band_names),
+                "expected_ssp_bands_present": set(SSP_NAMES).issubset(
+                    chen_first_image_band_names
+                ),
                 "source_ready": chen_source_ready,
                 "error": chen_source_error,
             }
@@ -679,7 +781,6 @@ def _(
         with path.open(encoding="utf-8") as file:
             return ee.Geometry(ee.deserializer.decode(json.load(file)))
 
-
     def build_chen_area_stack():
         collection_list = chen_collection.toList(chen_collection_size)
         bands = []
@@ -696,7 +797,6 @@ def _(
                 )
                 band_keys.append((ssp, int(year), band_key))
         return ee.Image.cat(bands), tuple(band_keys)
-
 
     if chen_source_ready:
         chen_area_stack, chen_area_band_keys = build_chen_area_stack()
@@ -728,16 +828,16 @@ def _(
     if chen_source_ready and chen_area_stack is not None:
         for _zone_name in allocation_zone_names:
             try:
-                _geometry = load_ee_geometry(OUT_PATH / "bbox" / "ee" / f"{_zone_name}.json")
-                _result = (
-                    chen_area_stack.reduceRegion(
-                        reducer=ee.Reducer.sum(),
-                        geometry=_geometry,
-                        scale=CHEN_SCALE_M,
-                        maxPixels=int(1e10),
-                        tileScale=4,
-                    ).getInfo()
+                _geometry = load_ee_geometry(
+                    OUT_PATH / "bbox" / "ee" / f"{_zone_name}.json"
                 )
+                _result = chen_area_stack.reduceRegion(
+                    reducer=ee.Reducer.sum(),
+                    geometry=_geometry,
+                    scale=CHEN_SCALE_M,
+                    maxPixels=int(1e10),
+                    tileScale=4,
+                ).getInfo()
                 for _ssp, _year, _band_key in chen_area_band_keys:
                     _area_m2 = float(_result.get(_band_key) or 0.0)
                     _trajectory_rows.append(
@@ -750,7 +850,9 @@ def _(
                         }
                     )
             except Exception as _exc:  # noqa: BLE001
-                _chen_error_rows.append({"zone": _zone_name, "error": short_error(_exc)})
+                _chen_error_rows.append(
+                    {"zone": _zone_name, "error": short_error(_exc)}
+                )
     else:
         _chen_error_rows.extend(
             {"zone": _zone_name, "error": chen_source_error}
@@ -766,7 +868,12 @@ def _(
     chen_reduction_summary = pd.DataFrame(
         [
             {"metric": "zones requested", "value": len(allocation_zone_names)},
-            {"metric": "zones reduced successfully", "value": chen_urban_trajectory["zone"].nunique() if not chen_urban_trajectory.empty else 0},
+            {
+                "metric": "zones reduced successfully",
+                "value": chen_urban_trajectory["zone"].nunique()
+                if not chen_urban_trajectory.empty
+                else 0,
+            },
             {"metric": "trajectory rows", "value": len(chen_urban_trajectory)},
             {"metric": "zone reduction errors", "value": len(chen_reduction_errors)},
         ]
@@ -802,7 +909,9 @@ def _(
     ].rename(columns={"settlements": "glc_settlements_2020_m2"})
     glc_settlement_baseline = glc_settlement_baseline.assign(
         glc_settlements_2020_ha=lambda _df: _df["glc_settlements_2020_m2"] / 10_000.0,
-        near_zero_glc_baseline=lambda _df: _df["glc_settlements_2020_m2"] < RATIO_DENOMINATOR_FLOOR_M2,
+        near_zero_glc_baseline=lambda _df: (
+            _df["glc_settlements_2020_m2"] < RATIO_DENOMINATOR_FLOOR_M2
+        ),
     )
 
     chen_2020_compatibility = chen_urban_trajectory.loc[
@@ -813,17 +922,22 @@ def _(
         how="inner",
     )
     chen_2020_compatibility = chen_2020_compatibility.assign(
-        signed_difference_m2=lambda _df: _df["chen_urban_area_m2"] - _df["glc_settlements_2020_m2"],
+        signed_difference_m2=lambda _df: (
+            _df["chen_urban_area_m2"] - _df["glc_settlements_2020_m2"]
+        ),
         absolute_difference_m2=lambda _df: _df["signed_difference_m2"].abs(),
         signed_difference_ha=lambda _df: _df["signed_difference_m2"] / 10_000.0,
         absolute_difference_ha=lambda _df: _df["absolute_difference_m2"] / 10_000.0,
-        ratio_denominator_is_stable=lambda _df: _df["glc_settlements_2020_m2"] >= RATIO_DENOMINATOR_FLOOR_M2,
+        ratio_denominator_is_stable=lambda _df: (
+            _df["glc_settlements_2020_m2"] >= RATIO_DENOMINATOR_FLOOR_M2
+        ),
     )
     _stable_denominator = chen_2020_compatibility["ratio_denominator_is_stable"]
     chen_2020_compatibility = chen_2020_compatibility.assign(
         chen_to_glc_ratio=np.where(
             _stable_denominator,
-            chen_2020_compatibility["chen_urban_area_m2"] / chen_2020_compatibility["glc_settlements_2020_m2"],
+            chen_2020_compatibility["chen_urban_area_m2"]
+            / chen_2020_compatibility["glc_settlements_2020_m2"],
             np.nan,
         )
     )
@@ -831,7 +945,6 @@ def _(
         ratio_error=lambda _df: _df["chen_to_glc_ratio"] - 1.0,
         absolute_ratio_error=lambda _df: _df["ratio_error"].abs(),
     )
-
 
     def assign_compatibility_decision(row: pd.Series) -> str:
         ratio_flag = (
@@ -849,7 +962,6 @@ def _(
             return "manual_review_large_ratio_mismatch"
         return "carry_forward_with_documented_mismatch"
 
-
     zone_compatibility_decisions = (
         chen_2020_compatibility.groupby("zone", dropna=False)
         .agg(
@@ -857,20 +969,31 @@ def _(
             median_chen_urban_2020_ha=("chen_urban_area_ha", "median"),
             max_abs_difference_ha=("absolute_difference_ha", "max"),
             max_abs_ratio_error=("absolute_ratio_error", "max"),
-            ratio_unstable_rows=("ratio_denominator_is_stable", lambda _series: int((~_series).sum())),
+            ratio_unstable_rows=(
+                "ratio_denominator_is_stable",
+                lambda _series: int((~_series).sum()),
+            ),
         )
         .reset_index()
     )
     zone_compatibility_decisions = zone_compatibility_decisions.assign(
-        compatibility_decision=lambda _df: _df.apply(assign_compatibility_decision, axis=1),
-        needs_manual_review=lambda _df: _df["compatibility_decision"].str.startswith("manual_review"),
+        compatibility_decision=lambda _df: _df.apply(
+            assign_compatibility_decision, axis=1
+        ),
+        needs_manual_review=lambda _df: _df["compatibility_decision"].str.startswith(
+            "manual_review"
+        ),
     )
 
-    _trajectory_sorted = chen_urban_trajectory.sort_values(["zone", "ssp", "year"]).copy()
-    _trajectory_sorted["start_year"] = _trajectory_sorted.groupby(["zone", "ssp"])["year"].shift()
-    _trajectory_sorted["start_chen_urban_area_m2"] = _trajectory_sorted.groupby(["zone", "ssp"])[
-        "chen_urban_area_m2"
+    _trajectory_sorted = chen_urban_trajectory.sort_values(
+        ["zone", "ssp", "year"]
+    ).copy()
+    _trajectory_sorted["start_year"] = _trajectory_sorted.groupby(["zone", "ssp"])[
+        "year"
     ].shift()
+    _trajectory_sorted["start_chen_urban_area_m2"] = _trajectory_sorted.groupby(
+        ["zone", "ssp"]
+    )["chen_urban_area_m2"].shift()
 
     chen_settlement_demand_table = (
         _trajectory_sorted.loc[_trajectory_sorted["start_year"].notna()]
@@ -883,11 +1006,17 @@ def _(
         )
         .copy()
     )
-    chen_settlement_demand_table["start_year"] = chen_settlement_demand_table["start_year"].astype(int)
-    chen_settlement_demand_table["end_year"] = chen_settlement_demand_table["end_year"].astype(int)
+    chen_settlement_demand_table["start_year"] = chen_settlement_demand_table[
+        "start_year"
+    ].astype(int)
+    chen_settlement_demand_table["end_year"] = chen_settlement_demand_table[
+        "end_year"
+    ].astype(int)
     chen_settlement_demand_table = chen_settlement_demand_table.assign(
         interval_years=lambda _df: _df["end_year"] - _df["start_year"],
-        raw_delta_m2=lambda _df: _df["end_chen_urban_area_m2"] - _df["start_chen_urban_area_m2"],
+        raw_delta_m2=lambda _df: (
+            _df["end_chen_urban_area_m2"] - _df["start_chen_urban_area_m2"]
+        ),
     )
     chen_settlement_demand_table = chen_settlement_demand_table.assign(
         raw_delta_ha=lambda _df: _df["raw_delta_m2"] / 10_000.0,
@@ -901,18 +1030,24 @@ def _(
             default="unknown",
         ),
         demand_m2=lambda _df: _df["raw_delta_m2"].clip(lower=0.0),
-        clipped_negative_delta_m2=lambda _df: np.where(_df["raw_delta_m2"] < 0, -_df["raw_delta_m2"], 0.0),
+        clipped_negative_delta_m2=lambda _df: np.where(
+            _df["raw_delta_m2"] < 0, -_df["raw_delta_m2"], 0.0
+        ),
     )
     chen_settlement_demand_table = chen_settlement_demand_table.assign(
         demand_ha=lambda _df: _df["demand_m2"] / 10_000.0,
-        clipped_negative_delta_ha=lambda _df: _df["clipped_negative_delta_m2"] / 10_000.0,
+        clipped_negative_delta_ha=lambda _df: (
+            _df["clipped_negative_delta_m2"] / 10_000.0
+        ),
     )
     chen_settlement_demand_table = chen_settlement_demand_table.merge(
         glc_settlement_baseline,
         on="zone",
         how="left",
     ).merge(
-        zone_compatibility_decisions[["zone", "compatibility_decision", "needs_manual_review"]],
+        zone_compatibility_decisions[
+            ["zone", "compatibility_decision", "needs_manual_review"]
+        ],
         on="zone",
         how="left",
     )
@@ -920,11 +1055,13 @@ def _(
     chen_settlement_demand_table = chen_settlement_demand_table.sort_values(
         ["zone", "ssp", "start_year", "end_year"]
     ).reset_index(drop=True)
-    chen_settlement_demand_table["cumulative_demand_from_2020_m2"] = chen_settlement_demand_table.groupby(
-        ["zone", "ssp"]
-    )["demand_m2"].cumsum()
+    chen_settlement_demand_table["cumulative_demand_from_2020_m2"] = (
+        chen_settlement_demand_table.groupby(["zone", "ssp"])["demand_m2"].cumsum()
+    )
     chen_settlement_demand_table = chen_settlement_demand_table.assign(
-        glc_plus_clipped_demand_area_m2=lambda _df: _df["glc_settlements_2020_m2"] + _df["cumulative_demand_from_2020_m2"],
+        glc_plus_clipped_demand_area_m2=lambda _df: (
+            _df["glc_settlements_2020_m2"] + _df["cumulative_demand_from_2020_m2"]
+        ),
         baseline_choice=DEMAND_BASELINE_CHOICE,
         calibration_choice=DEMAND_CALIBRATION_CHOICE,
         negative_delta_policy=NEGATIVE_DELTA_POLICY,
@@ -954,12 +1091,33 @@ def _(
 
     demand_readiness_summary = pd.DataFrame(
         [
-            {"metric": "zones with Chen trajectories", "value": chen_urban_trajectory["zone"].nunique()},
+            {
+                "metric": "zones with Chen trajectories",
+                "value": chen_urban_trajectory["zone"].nunique(),
+            },
             {"metric": "demand rows", "value": len(chen_settlement_demand_table)},
-            {"metric": "positive demand rows", "value": int((chen_settlement_demand_table["delta_status"] == "positive").sum())},
-            {"metric": "zero demand rows", "value": int((chen_settlement_demand_table["delta_status"] == "zero").sum())},
-            {"metric": "negative demand rows", "value": int((chen_settlement_demand_table["delta_status"] == "negative").sum())},
-            {"metric": "compatibility manual-review zones", "value": int(zone_compatibility_decisions["needs_manual_review"].sum())},
+            {
+                "metric": "positive demand rows",
+                "value": int(
+                    (chen_settlement_demand_table["delta_status"] == "positive").sum()
+                ),
+            },
+            {
+                "metric": "zero demand rows",
+                "value": int(
+                    (chen_settlement_demand_table["delta_status"] == "zero").sum()
+                ),
+            },
+            {
+                "metric": "negative demand rows",
+                "value": int(
+                    (chen_settlement_demand_table["delta_status"] == "negative").sum()
+                ),
+            },
+            {
+                "metric": "compatibility manual-review zones",
+                "value": int(zone_compatibility_decisions["needs_manual_review"].sum()),
+            },
         ]
     )
 
@@ -996,34 +1154,36 @@ def _(
     zone_prior_quality,
 ):
     baseline_area_lookup = (
-        baseline_area_by_zone.set_index("zone")
-        .loc[:, list(LABEL_LIST)]
-        .astype(float)
+        baseline_area_by_zone.set_index("zone").loc[:, list(LABEL_LIST)].astype(float)
     )
 
-    zone_prior_quality_lookup = zone_prior_quality.set_index("zone")["prior_quality_status"].to_dict()
+    zone_prior_quality_lookup = zone_prior_quality.set_index("zone")[
+        "prior_quality_status"
+    ].to_dict()
 
-    zone_source_share_matrix = (
-        historical_source_share_by_zone.pivot_table(
-            index="zone",
-            columns="source_class",
-            values="source_share",
-            fill_value=0.0,
-        )
-        .reindex(columns=list(NON_SETTLEMENT_LABELS), fill_value=0.0)
-    )
+    zone_source_share_matrix = historical_source_share_by_zone.pivot_table(
+        index="zone",
+        columns="source_class",
+        values="source_share",
+        fill_value=0.0,
+    ).reindex(columns=list(NON_SETTLEMENT_LABELS), fill_value=0.0)
 
     pooled_source_share_series = (
-        pooled_source_prior_excluding_high_risk.set_index("source_class")["source_share"]
+        pooled_source_prior_excluding_high_risk.set_index("source_class")[
+            "source_share"
+        ]
         .reindex(list(NON_SETTLEMENT_LABELS))
         .fillna(0.0)
         .astype(float)
     )
     if float(pooled_source_share_series.sum()) > 0:
-        pooled_source_share_series = pooled_source_share_series / float(pooled_source_share_series.sum())
+        pooled_source_share_series = pooled_source_share_series / float(
+            pooled_source_share_series.sum()
+        )
 
     priority_rank_lookup = {
-        _source_class: _rank for _rank, _source_class in enumerate(PRIORITY_SOURCE_ORDER, start=1)
+        _source_class: _rank
+        for _rank, _source_class in enumerate(PRIORITY_SOURCE_ORDER, start=1)
     }
 
     allocation_input_summary = pd.DataFrame(
@@ -1031,7 +1191,10 @@ def _(
             {"metric": "baseline zones", "value": len(baseline_area_lookup)},
             {"metric": "demand rows", "value": len(chen_settlement_demand_table)},
             {"metric": "allocation methods", "value": len(ALLOCATION_METHODS)},
-            {"metric": "non-settlement source classes", "value": len(NON_SETTLEMENT_LABELS)},
+            {
+                "metric": "non-settlement source classes",
+                "value": len(NON_SETTLEMENT_LABELS),
+            },
             {"metric": "priority source classes", "value": len(PRIORITY_SOURCE_ORDER)},
         ]
     )
@@ -1056,7 +1219,9 @@ def _(
     zone_source_share_matrix,
 ):
     def source_prior_for_zone(zone_name: str) -> tuple[pd.Series, str, str]:
-        prior_quality_status = zone_prior_quality_lookup.get(zone_name, "pooled_required_no_history")
+        prior_quality_status = zone_prior_quality_lookup.get(
+            zone_name, "pooled_required_no_history"
+        )
         if (
             prior_quality_status in PRIOR_ZONE_SPECIFIC_STATUSES
             and zone_name in zone_source_share_matrix.index
@@ -1072,7 +1237,6 @@ def _(
         if float(prior.sum()) > 0:
             prior = prior / float(prior.sum())
         return prior, prior_scope, prior_quality_status
-
 
     "source prior helper defined"
     return (source_prior_for_zone,)
@@ -1100,14 +1264,18 @@ def _(
             ]
             for _zone_name in allocation_zone_names:
                 _demand_rows = _ssp_demand.loc[_ssp_demand["zone"] == _zone_name]
-                _area_table, _transition_table, _interval_records, _source_records = build_scenario_tables(
-                    _method,
-                    _zone_name,
-                    _ssp,
-                    _demand_rows,
+                _area_table, _transition_table, _interval_records, _source_records = (
+                    build_scenario_tables(
+                        _method,
+                        _zone_name,
+                        _ssp,
+                        _demand_rows,
+                    )
                 )
                 pseudo_area_tables[(_method, _ssp, _zone_name)] = _area_table
-                pseudo_transition_tables[(_method, _ssp, _zone_name)] = _transition_table
+                pseudo_transition_tables[(_method, _ssp, _zone_name)] = (
+                    _transition_table
+                )
                 _interval_report_rows.extend(_interval_records)
                 _source_report_rows.extend(_source_records)
 
@@ -1119,10 +1287,22 @@ def _(
         .agg(
             zones=("zone", "nunique"),
             intervals=("start_year", "count"),
-            total_demand_ha=("demand_m2", lambda _series: float(_series.sum() / 10_000.0)),
-            total_allocated_ha=("allocated_m2", lambda _series: float(_series.sum() / 10_000.0)),
-            total_unresolved_demand_ha=("unresolved_demand_m2", lambda _series: float(_series.sum() / 10_000.0)),
-            intervals_with_unresolved_demand=("unresolved_demand_m2", lambda _series: int((_series > VALIDATION_TOLERANCE_M2).sum())),
+            total_demand_ha=(
+                "demand_m2",
+                lambda _series: float(_series.sum() / 10_000.0),
+            ),
+            total_allocated_ha=(
+                "allocated_m2",
+                lambda _series: float(_series.sum() / 10_000.0),
+            ),
+            total_unresolved_demand_ha=(
+                "unresolved_demand_m2",
+                lambda _series: float(_series.sum() / 10_000.0),
+            ),
+            intervals_with_unresolved_demand=(
+                "unresolved_demand_m2",
+                lambda _series: int((_series > VALIDATION_TOLERANCE_M2).sum()),
+            ),
             manual_review_intervals=("needs_manual_review", "sum"),
         )
         .reset_index()
@@ -1155,9 +1335,15 @@ def _(EPSILON_M2, allocation_source_report):
     source_allocation_summary = (
         allocation_source_report.groupby(["method", "source_class"], dropna=False)
         .agg(
-            allocated_ha=("allocated_m2", lambda _series: float(_series.sum() / 10_000.0)),
+            allocated_ha=(
+                "allocated_m2",
+                lambda _series: float(_series.sum() / 10_000.0),
+            ),
             exhausted_interval_count=("source_exhausted", "sum"),
-            positive_allocation_rows=("allocated_m2", lambda _series: int((_series > EPSILON_M2).sum())),
+            positive_allocation_rows=(
+                "allocated_m2",
+                lambda _series: int((_series > EPSILON_M2).sum()),
+            ),
         )
         .reset_index()
         .sort_values(["method", "allocated_ha"], ascending=[True, False])
@@ -1229,9 +1415,9 @@ def _(
     )
 
     _source_overallocation_lookup = (
-        allocation_source_report_with_checks.groupby(["method", "ssp", "zone"], dropna=False)[
-            "source_overallocated_m2"
-        ]
+        allocation_source_report_with_checks.groupby(
+            ["method", "ssp", "zone"], dropna=False
+        )["source_overallocated_m2"]
         .max()
         .to_dict()
     )
@@ -1248,15 +1434,36 @@ def _(
         _area_values = _area_table.to_numpy(dtype=float)
         _transition_values = _transition_table.to_numpy()
         _area_labels_valid = list(_area_table.columns) == list(LABEL_LIST)
-        _area_years_valid = tuple(int(_year) for _year in _area_table.index) == tuple(CHEN_YEARS)
-        _transition_dims_valid = tuple(_transition_table.dims) == ("year", "start", "end")
-        _transition_coords_valid = (
-            tuple(str(_label) for _label in _transition_table.coords["start"].to_numpy()) == tuple(LABEL_LIST)
-            and tuple(str(_label) for _label in _transition_table.coords["end"].to_numpy()) == tuple(LABEL_LIST)
-            and tuple(int(_year) for _year in _transition_table.coords["year"].to_numpy()) == tuple(CHEN_YEARS[:-1])
+        _area_years_valid = tuple(int(_year) for _year in _area_table.index) == tuple(
+            CHEN_YEARS
         )
-        _area_values_valid = bool(np.isfinite(_area_values).all() and (_area_values >= -VALIDATION_TOLERANCE_M2).all())
-        _transition_values_valid = bool(np.isfinite(_transition_values).all() and (_transition_values >= -VALIDATION_TOLERANCE_M2).all())
+        _transition_dims_valid = tuple(_transition_table.dims) == (
+            "year",
+            "start",
+            "end",
+        )
+        _transition_coords_valid = (
+            tuple(
+                str(_label) for _label in _transition_table.coords["start"].to_numpy()
+            )
+            == tuple(LABEL_LIST)
+            and tuple(
+                str(_label) for _label in _transition_table.coords["end"].to_numpy()
+            )
+            == tuple(LABEL_LIST)
+            and tuple(
+                int(_year) for _year in _transition_table.coords["year"].to_numpy()
+            )
+            == tuple(CHEN_YEARS[:-1])
+        )
+        _area_values_valid = bool(
+            np.isfinite(_area_values).all()
+            and (_area_values >= -VALIDATION_TOLERANCE_M2).all()
+        )
+        _transition_values_valid = bool(
+            np.isfinite(_transition_values).all()
+            and (_transition_values >= -VALIDATION_TOLERANCE_M2).all()
+        )
 
         _max_start_mass_diff_m2 = 0.0
         _max_end_mass_diff_m2 = 0.0
@@ -1267,8 +1474,18 @@ def _(
             _start_area = _area_table.loc[_start_year].astype(float)
             _end_area = _area_table.loc[_end_year].astype(float)
             _transition_slice = _transition_table.sel(year=_start_year)
-            _start_sum = _transition_slice.sum(dim="end").to_series().reindex(list(LABEL_LIST)).astype(float)
-            _end_sum = _transition_slice.sum(dim="start").to_series().reindex(list(LABEL_LIST)).astype(float)
+            _start_sum = (
+                _transition_slice.sum(dim="end")
+                .to_series()
+                .reindex(list(LABEL_LIST))
+                .astype(float)
+            )
+            _end_sum = (
+                _transition_slice.sum(dim="start")
+                .to_series()
+                .reindex(list(LABEL_LIST))
+                .astype(float)
+            )
             _max_start_mass_diff_m2 = max(
                 _max_start_mass_diff_m2,
                 float((_start_sum - _start_area).abs().max()),
@@ -1285,7 +1502,9 @@ def _(
             )
             _max_settlement_gain_diff_m2 = max(
                 _max_settlement_gain_diff_m2,
-                abs(_settlement_gain_from_transition_m2 - float(_interval.allocated_m2)),
+                abs(
+                    _settlement_gain_from_transition_m2 - float(_interval.allocated_m2)
+                ),
             )
 
         _demand_reconciliation_diff_m2 = float(
@@ -1301,7 +1520,9 @@ def _(
             _source_overallocation_lookup.get((_method, _ssp, _zone_name), 0.0)
         )
         _unresolved_demand_m2 = float(_intervals["unresolved_demand_m2"].sum())
-        _clipped_negative_delta_m2 = float(_intervals["clipped_negative_delta_m2"].sum())
+        _clipped_negative_delta_m2 = float(
+            _intervals["clipped_negative_delta_m2"].sum()
+        )
 
         _validation_passed = bool(
             _area_labels_valid
@@ -1345,13 +1566,22 @@ def _(
         .agg(
             zones=("zone", "nunique"),
             validation_passed=("validation_passed", "all"),
-            failed_zone_count=("validation_passed", lambda _series: int((~_series).sum())),
+            failed_zone_count=(
+                "validation_passed",
+                lambda _series: int((~_series).sum()),
+            ),
             max_start_mass_diff_m2=("max_start_mass_diff_m2", "max"),
             max_end_mass_diff_m2=("max_end_mass_diff_m2", "max"),
             max_settlement_gain_diff_m2=("max_settlement_gain_diff_m2", "max"),
-            max_demand_reconciliation_diff_m2=("max_demand_reconciliation_diff_m2", "max"),
+            max_demand_reconciliation_diff_m2=(
+                "max_demand_reconciliation_diff_m2",
+                "max",
+            ),
             max_source_overallocated_m2=("max_source_overallocated_m2", "max"),
-            unresolved_demand_ha=("unresolved_demand_m2", lambda _series: float(_series.sum() / 10_000.0)),
+            unresolved_demand_ha=(
+                "unresolved_demand_m2",
+                lambda _series: float(_series.sum() / 10_000.0),
+            ),
         )
         .reset_index()
     )
@@ -1456,10 +1686,16 @@ def _(
                 )
 
         saved_artifact_index = pd.DataFrame(saved_artifact_rows)
-        save_errors = pd.DataFrame(save_error_rows, columns=["method", "ssp", "zone", "error"])
+        save_errors = pd.DataFrame(
+            save_error_rows, columns=["method", "ssp", "zone", "error"]
+        )
 
-        allocation_interval_report.to_parquet(_reports_dir / "allocation_interval_report.parquet")
-        allocation_source_report_with_checks.to_parquet(_reports_dir / "allocation_source_report.parquet")
+        allocation_interval_report.to_parquet(
+            _reports_dir / "allocation_interval_report.parquet"
+        )
+        allocation_source_report_with_checks.to_parquet(
+            _reports_dir / "allocation_source_report.parquet"
+        )
         validation_report.to_parquet(_reports_dir / "validation_report.parquet")
         saved_artifact_index.to_parquet(_reports_dir / "saved_artifact_index.parquet")
 
@@ -1479,17 +1715,31 @@ def _(
             "all_validation_passed": all_validation_passed,
             "artifact_count": len(saved_artifact_index),
             "report_files": {
-                "allocation_interval_report": str(_reports_dir / "allocation_interval_report.parquet"),
-                "allocation_source_report": str(_reports_dir / "allocation_source_report.parquet"),
+                "allocation_interval_report": str(
+                    _reports_dir / "allocation_interval_report.parquet"
+                ),
+                "allocation_source_report": str(
+                    _reports_dir / "allocation_source_report.parquet"
+                ),
                 "validation_report": str(_reports_dir / "validation_report.parquet"),
-                "saved_artifact_index": str(_reports_dir / "saved_artifact_index.parquet"),
+                "saved_artifact_index": str(
+                    _reports_dir / "saved_artifact_index.parquet"
+                ),
             },
         }
-        with (_reports_dir / "provenance_manifest.json").open("w", encoding="utf-8") as _file:
+        with (_reports_dir / "provenance_manifest.json").open(
+            "w", encoding="utf-8"
+        ) as _file:
             json.dump(output_manifest, _file, indent=2)
     else:
         saved_artifact_index = pd.DataFrame(
-            columns=["method", "ssp", "zone", "area_table_path", "transition_table_path"]
+            columns=[
+                "method",
+                "ssp",
+                "zone",
+                "area_table_path",
+                "transition_table_path",
+            ]
         )
         save_errors = pd.DataFrame(columns=["method", "ssp", "zone", "error"])
         output_manifest = {
@@ -1530,7 +1780,9 @@ def _(
     validation_summary_by_method_ssp,
 ):
     _validation_plot_data = validation_summary_by_method_ssp.copy()
-    _validation_plot_data["unresolved_demand_ha"] = _validation_plot_data["unresolved_demand_ha"].round(8)
+    _validation_plot_data["unresolved_demand_ha"] = _validation_plot_data[
+        "unresolved_demand_ha"
+    ].round(8)
 
     _validation_fig, _validation_axes = plt.subplots(1, 2, figsize=(13, 5))
     sns.barplot(
@@ -1576,11 +1828,17 @@ def _(
 ):
     _scenario_count = len(pseudo_area_tables)
     _failed_validation_count = int((~validation_report["validation_passed"]).sum())
-    _total_unresolved_ha = float(allocation_interval_report["unresolved_demand_m2"].sum() / 10_000.0)
-    _total_allocated_ha = float(allocation_interval_report["allocated_m2"].sum() / 10_000.0)
+    _total_unresolved_ha = float(
+        allocation_interval_report["unresolved_demand_m2"].sum() / 10_000.0
+    )
+    _total_allocated_ha = float(
+        allocation_interval_report["allocated_m2"].sum() / 10_000.0
+    )
     _max_start_diff = float(validation_report["max_start_mass_diff_m2"].max())
     _max_end_diff = float(validation_report["max_end_mass_diff_m2"].max())
-    _manual_review_zone_count = int(zone_compatibility_decisions["needs_manual_review"].sum())
+    _manual_review_zone_count = int(
+        zone_compatibility_decisions["needs_manual_review"].sum()
+    )
 
     allocation_readout = mo.md(
         f"""
@@ -1644,7 +1902,9 @@ def _(
     priority_rank_lookup,
     xr,
 ):
-    def build_transition_matrix(start_area: pd.Series, allocations: pd.Series) -> pd.DataFrame:
+    def build_transition_matrix(
+        start_area: pd.Series, allocations: pd.Series
+    ) -> pd.DataFrame:
         matrix = pd.DataFrame(0.0, index=list(LABEL_LIST), columns=list(LABEL_LIST))
         for label in LABEL_LIST:
             matrix.loc[label, label] = float(start_area[label])
@@ -1656,41 +1916,61 @@ def _(
             matrix.loc[source_class, "settlements"] += allocation_amount_m2
         return matrix.clip(lower=0.0)
 
-
     def build_scenario_tables(
         method: str,
         zone_name: str,
         ssp: str,
         demand_rows: pd.DataFrame,
-    ) -> tuple[pd.DataFrame, xr.DataArray, list[dict[str, object]], list[dict[str, object]]]:
+    ) -> tuple[
+        pd.DataFrame, xr.DataArray, list[dict[str, object]], list[dict[str, object]]
+    ]:
         current_area = baseline_area_lookup.loc[zone_name].astype(float).copy()
-        area_records = [{"year": BASELINE_YEAR, **{_label: float(current_area[_label]) for _label in LABEL_LIST}}]
+        area_records = [
+            {
+                "year": BASELINE_YEAR,
+                **{_label: float(current_area[_label]) for _label in LABEL_LIST},
+            }
+        ]
         transition_matrices = []
         transition_years = []
         interval_records = []
         source_records = []
 
-        for demand_row in demand_rows.sort_values(["start_year", "end_year"]).itertuples(index=False):
+        for demand_row in demand_rows.sort_values(
+            ["start_year", "end_year"]
+        ).itertuples(index=False):
             start_year = int(demand_row.start_year)
             end_year = int(demand_row.end_year)
             start_area = current_area.copy()
             demand_m2 = float(demand_row.demand_m2)
             clipped_negative_delta_m2 = float(demand_row.clipped_negative_delta_m2)
-            allocations, weights, unresolved_m2, prior_scope, prior_quality_status = allocate_interval(
-                method,
-                zone_name,
-                current_area,
-                demand_m2,
+            allocations, weights, unresolved_m2, prior_scope, prior_quality_status = (
+                allocate_interval(
+                    method,
+                    zone_name,
+                    current_area,
+                    demand_m2,
+                )
             )
             allocated_total_m2 = float(allocations.sum())
             transition_matrix = build_transition_matrix(start_area, allocations)
 
             current_area = start_area.copy()
             for source_class, allocation_value_m2 in allocations.items():
-                current_area.loc[source_class] = max(float(current_area.loc[source_class]) - float(allocation_value_m2), 0.0)
-            current_area.loc["settlements"] = float(current_area.loc["settlements"]) + allocated_total_m2
+                current_area.loc[source_class] = max(
+                    float(current_area.loc[source_class]) - float(allocation_value_m2),
+                    0.0,
+                )
+            current_area.loc["settlements"] = (
+                float(current_area.loc["settlements"]) + allocated_total_m2
+            )
 
-            area_records.append({"year": end_year, **{_label: float(current_area[_label]) for _label in LABEL_LIST}})
+            area_records.append(
+                {
+                    "year": end_year,
+                    **{_label: float(current_area[_label]) for _label in LABEL_LIST},
+                }
+            )
             transition_matrices.append(transition_matrix.to_numpy(dtype=float))
             transition_years.append(start_year)
 
@@ -1713,7 +1993,11 @@ def _(
                 }
             )
 
-            available = start_area.reindex(list(NON_SETTLEMENT_LABELS)).astype(float).clip(lower=0.0)
+            available = (
+                start_area.reindex(list(NON_SETTLEMENT_LABELS))
+                .astype(float)
+                .clip(lower=0.0)
+            )
             interval_weights = weights.reindex(list(NON_SETTLEMENT_LABELS)).fillna(0.0)
             source_records.extend(
                 {
@@ -1729,7 +2013,8 @@ def _(
                     "priority_rank": priority_rank_lookup.get(source_class, np.nan),
                     "source_exhausted": bool(
                         available[source_class] > EPSILON_M2
-                        and available[source_class] - allocations[source_class] <= VALIDATION_TOLERANCE_M2
+                        and available[source_class] - allocations[source_class]
+                        <= VALIDATION_TOLERANCE_M2
                     ),
                 }
                 for source_class in NON_SETTLEMENT_LABELS
@@ -1763,7 +2048,6 @@ def _(
         )
         area_table.index.name = "year"
         return area_table, transition_table, interval_records, source_records
-
 
     "scenario table builders defined"
     return (build_scenario_tables,)
@@ -1803,7 +2087,9 @@ def _(EPSILON_M2, NON_SETTLEMENT_LABELS, np, pd):
             if float(effective_weights.sum()) <= EPSILON_M2:
                 break
 
-            proposed = remaining_demand_m2 * effective_weights / float(effective_weights.sum())
+            proposed = (
+                remaining_demand_m2 * effective_weights / float(effective_weights.sum())
+            )
             capped = pd.Series(
                 np.minimum(proposed.to_numpy(), remaining_available.to_numpy()),
                 index=list(NON_SETTLEMENT_LABELS),
@@ -1816,7 +2102,6 @@ def _(EPSILON_M2, NON_SETTLEMENT_LABELS, np, pd):
             remaining_demand_m2 -= allocated_this_round
 
         return allocations.clip(lower=0.0), max(remaining_demand_m2, 0.0)
-
 
     "proportional allocator defined"
     return (allocate_proportionally,)
@@ -1839,16 +2124,24 @@ def _(
         demand_m2: float,
     ) -> tuple[pd.Series, pd.Series, float, str, str]:
         prior, prior_scope, prior_quality_status = source_prior_for_zone(zone_name)
-        available = current_area.reindex(list(NON_SETTLEMENT_LABELS)).astype(float).clip(lower=0.0)
+        available = (
+            current_area.reindex(list(NON_SETTLEMENT_LABELS))
+            .astype(float)
+            .clip(lower=0.0)
+        )
 
         if method == "historical_shares":
             weights = prior
-            allocations, unresolved_m2 = allocate_proportionally(demand_m2, available, weights)
+            allocations, unresolved_m2 = allocate_proportionally(
+                demand_m2, available, weights
+            )
         elif method == "availability_constrained":
             weights = prior * available
             if float(weights.sum()) <= EPSILON_M2:
                 weights = available
-            allocations, unresolved_m2 = allocate_proportionally(demand_m2, available, weights)
+            allocations, unresolved_m2 = allocate_proportionally(
+                demand_m2, available, weights
+            )
             prior_scope = f"{prior_scope}_availability_weighted"
         elif method == "priority_ranking":
             weights = pd.Series(
@@ -1866,7 +2159,6 @@ def _(
             raise ValueError(error_message)
 
         return allocations, weights, unresolved_m2, prior_scope, prior_quality_status
-
 
     "interval allocator defined"
     return (allocate_interval,)
@@ -1893,11 +2185,12 @@ def _(EPSILON_M2, NON_SETTLEMENT_LABELS, PRIORITY_SOURCE_ORDER, pd):
             available_m2 = float(remaining_available.get(source_class, 0.0))
             allocated_m2 = min(remaining_demand_m2, available_m2)
             allocations.loc[source_class] = allocated_m2
-            remaining_available.loc[source_class] = max(available_m2 - allocated_m2, 0.0)
+            remaining_available.loc[source_class] = max(
+                available_m2 - allocated_m2, 0.0
+            )
             remaining_demand_m2 -= allocated_m2
 
         return allocations, max(remaining_demand_m2, 0.0)
-
 
     "priority allocator defined"
     return (allocate_by_priority,)

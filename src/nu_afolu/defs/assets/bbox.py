@@ -1,3 +1,5 @@
+import json
+
 import ee
 import geopandas as gpd
 import shapely
@@ -50,7 +52,7 @@ def zone_bbox_shapely(
     io_manager_key="earthengine_manager",
     group_name="bbox",
 )
-def zone_bbox_ee(df_bbox: gpd.GeoDataFrame) -> ee.geometry.Geometry:
+def zone_bbox_ee(df_bbox: gpd.GeoDataFrame) -> ee.Geometry:
     bbox_shapely = df_bbox["geometry"].item()
 
     if not isinstance(bbox_shapely, shapely.Polygon):
@@ -59,4 +61,38 @@ def zone_bbox_ee(df_bbox: gpd.GeoDataFrame) -> ee.geometry.Geometry:
 
     return ee.geometry.Geometry.Polygon(
         list(zip(*bbox_shapely.exterior.coords.xy, strict=False)),
+    )
+
+
+@dg.asset(
+    key=["bbox", "ee", "large"],
+    io_manager_key="earthengine_manager",
+    group_name="bbox",
+)
+def large_bbox_ee() -> ee.ComputedObject:
+    mpoly: ee.Geometry = (
+        ee.FeatureCollection("WM/geoLab/geoBoundaries/600/ADM0")
+        .filter(ee.Filter.eq("shapeGroup", "MEX"))
+        .first()
+        .geometry()
+    )
+
+    polygon_list = mpoly.geometries()
+    area_list = polygon_list.map(lambda geom: ee.Geometry(geom).area())
+    max_area = area_list.reduce(ee.Reducer.max())
+    max_index = area_list.indexOf(max_area)
+    return ee.Geometry(polygon_list.get(max_index))
+
+
+@dg.asset(
+    key=["bbox", "shapely", "large"],
+    ins={"bbox_ee": dg.AssetIn(["bbox", "ee", "large"])},
+    io_manager_key="geodataframe_manager",
+    group_name="bbox",
+)
+def large_bbox_shapely(bbox_ee: ee.ComputedObject) -> gpd.GeoDataFrame:
+    geometry_json = ee.Geometry(bbox_ee).getInfo()
+    return gpd.GeoDataFrame(
+        geometry=[shapely.from_geojson(json.dumps(geometry_json))],
+        crs="EPSG:4326",
     )

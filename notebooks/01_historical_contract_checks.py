@@ -61,7 +61,6 @@ def configure_contract_checks(Path, os, pd):
     OUT_PATH_KEY = "OUT_PATH"
     RECONCILIATION_ABS_TOLERANCE_M2 = 1.0
 
-
     def _read_dotenv_value(path: Path, key: str) -> str | None:
         if not path.exists():
             return None
@@ -75,7 +74,6 @@ def configure_contract_checks(Path, os, pd):
                 return _value.strip().strip('"').strip("'")
 
         return None
-
 
     _out_path_raw = os.environ.get(OUT_PATH_KEY)
     OUT_PATH_SOURCE = "environment variable"
@@ -140,9 +138,15 @@ def discover_candidate_zones(OUT_PATH, Path, pd, zone_partitions):
     REQUIRED_ARTIFACT_SPECS = {
         "bbox_ee": {"relative_dir": Path("bbox") / "ee", "extension": ".json"},
         "area_raster": {"relative_dir": Path("area_raster"), "extension": ".json"},
-        "transition_raster": {"relative_dir": Path("transition_raster"), "extension": ".json"},
+        "transition_raster": {
+            "relative_dir": Path("transition_raster"),
+            "extension": ".json",
+        },
         "area_table": {"relative_dir": Path("area_table"), "extension": ".parquet"},
-        "transition_table": {"relative_dir": Path("transition_table"), "extension": ".nc"},
+        "transition_table": {
+            "relative_dir": Path("transition_table"),
+            "extension": ".nc",
+        },
     }
 
     partition_zone_names = tuple(zone_partitions.get_partition_keys())
@@ -178,9 +182,18 @@ def discover_candidate_zones(OUT_PATH, Path, pd, zone_partitions):
     candidate_zone_summary = pd.DataFrame(
         [
             {"metric": "canonical partition zones", "value": len(partition_zone_names)},
-            {"metric": "zones with complete upstream artifact sets", "value": len(complete_zone_names)},
-            {"metric": "area_table files discovered", "value": len(artifact_zone_sets["area_table"])},
-            {"metric": "transition_table files discovered", "value": len(artifact_zone_sets["transition_table"])},
+            {
+                "metric": "zones with complete upstream artifact sets",
+                "value": len(complete_zone_names),
+            },
+            {
+                "metric": "area_table files discovered",
+                "value": len(artifact_zone_sets["area_table"]),
+            },
+            {
+                "metric": "transition_table files discovered",
+                "value": len(artifact_zone_sets["transition_table"]),
+            },
         ]
     )
 
@@ -208,7 +221,12 @@ def load_historical_tables(OUT_PATH, complete_zone_names, pd, xr):
             loaded_area_tables[_zone_name] = pd.read_parquet(_area_path)
         except Exception as _exc:  # noqa: BLE001
             _load_error_rows.append(
-                {"zone": _zone_name, "artifact": "area_table", "path": str(_area_path), "error": str(_exc)}
+                {
+                    "zone": _zone_name,
+                    "artifact": "area_table",
+                    "path": str(_area_path),
+                    "error": str(_exc),
+                }
             )
 
         try:
@@ -229,11 +247,16 @@ def load_historical_tables(OUT_PATH, complete_zone_names, pd, xr):
         if _zone_name in loaded_area_tables and _zone_name in loaded_transition_tables
     )
 
-    load_errors = pd.DataFrame(_load_error_rows, columns=["zone", "artifact", "path", "error"])
+    load_errors = pd.DataFrame(
+        _load_error_rows, columns=["zone", "artifact", "path", "error"]
+    )
     load_summary = pd.DataFrame(
         [
             {"metric": "candidate complete zones", "value": len(complete_zone_names)},
-            {"metric": "zones with both tables loaded", "value": len(loaded_zone_names)},
+            {
+                "metric": "zones with both tables loaded",
+                "value": len(loaded_zone_names),
+            },
             {"metric": "table load errors", "value": len(load_errors)},
         ]
     )
@@ -267,13 +290,14 @@ def _(mo):
 
 @app.cell
 def define_schema_helpers(LABEL_LIST, pd):
-    def format_label_list(labels: list[str] | tuple[str, ...], *, limit: int = 6) -> str:
+    def format_label_list(
+        labels: list[str] | tuple[str, ...], *, limit: int = 6
+    ) -> str:
         if not labels:
             return ""
         if len(labels) <= limit:
             return ", ".join(labels)
         return ", ".join(labels[:limit]) + f", ... ({len(labels)} total)"
-
 
     def normalize_area_table(area_table: pd.DataFrame) -> pd.DataFrame:
         _normalized = area_table.copy()
@@ -282,7 +306,6 @@ def define_schema_helpers(LABEL_LIST, pd):
         _normalized = _normalized.reindex(columns=list(LABEL_LIST))
         _normalized = _normalized.apply(pd.to_numeric, errors="coerce").fillna(0.0)
         return _normalized.sort_index()
-
 
     "basic schema helpers defined"
     return format_label_list, normalize_area_table
@@ -293,15 +316,20 @@ def define_area_label_helper(LABEL_LIST, pd):
     def summarize_area_labels(area_table: pd.DataFrame) -> dict[str, object]:
         _expected_labels = list(LABEL_LIST)
         _columns = list(area_table.columns)
-        _unexpected_labels = sorted(str(_column) for _column in _columns if _column not in _expected_labels)
-        _missing_labels = [_label for _label in _expected_labels if _label not in _columns]
-        _present_label_columns = [_label for _label in _expected_labels if _label in _columns]
+        _unexpected_labels = sorted(
+            str(_column) for _column in _columns if _column not in _expected_labels
+        )
+        _missing_labels = [
+            _label for _label in _expected_labels if _label not in _columns
+        ]
+        _present_label_columns = [
+            _label for _label in _expected_labels if _label in _columns
+        ]
         return {
             "unexpected_labels": _unexpected_labels,
             "missing_labels": _missing_labels,
             "present_label_columns": _present_label_columns,
         }
-
 
     "area label helper defined"
     return (summarize_area_labels,)
@@ -323,7 +351,9 @@ def define_area_year_helper(pd):
             _year_index = pd.Index(area_table.index.astype(int), name="year")
         except (TypeError, ValueError, OverflowError):
             _out["year_index_valid"] = False
-            _out["hard_messages"].append("area_table index cannot be interpreted as integer years")
+            _out["hard_messages"].append(
+                "area_table index cannot be interpreted as integer years"
+            )
             return _out
 
         _out["duplicate_year_count"] = int(_year_index.duplicated().sum())
@@ -331,13 +361,18 @@ def define_area_year_helper(pd):
         _out["year_max"] = int(_year_index.max()) if len(_year_index) else None
         _out["has_2020_area"] = 2020 in set(_year_index)
         if _out["duplicate_year_count"]:
-            _out["hard_messages"].append(f"duplicate area years: {_out['duplicate_year_count']}")
+            _out["hard_messages"].append(
+                f"duplicate area years: {_out['duplicate_year_count']}"
+            )
         if not _out["has_2020_area"]:
-            _out["hard_messages"].append("missing 2020 area row required for Chen baseline checks")
+            _out["hard_messages"].append(
+                "missing 2020 area row required for Chen baseline checks"
+            )
         if area_table.index.name != "year":
-            _out["note_messages"].append(f"index name is {area_table.index.name!r}, expected 'year'")
+            _out["note_messages"].append(
+                f"index name is {area_table.index.name!r}, expected 'year'"
+            )
         return _out
-
 
     "area year helper defined"
     return (summarize_area_years,)
@@ -361,12 +396,15 @@ def define_area_value_helper(np, pd):
         _numeric_values = _raw_values.apply(pd.to_numeric, errors="coerce")
         _value_array = _numeric_values.to_numpy(dtype=float, na_value=np.nan)
         return {
-            "missing_value_count": int((_numeric_values.isna() & _raw_values.isna()).sum().sum()),
-            "non_numeric_count": int((_numeric_values.isna() & _raw_values.notna()).sum().sum()),
+            "missing_value_count": int(
+                (_numeric_values.isna() & _raw_values.isna()).sum().sum()
+            ),
+            "non_numeric_count": int(
+                (_numeric_values.isna() & _raw_values.notna()).sum().sum()
+            ),
             "infinite_count": int(np.isinf(_value_array).sum()),
             "negative_count": int((_numeric_values < 0).sum().sum()),
         }
-
 
     "area value helper defined"
     return (summarize_area_values,)
@@ -380,10 +418,14 @@ def define_area_validation_helper(
     summarize_area_values,
     summarize_area_years,
 ):
-    def validate_area_table(zone_name: str, area_table: pd.DataFrame) -> dict[str, object]:
+    def validate_area_table(
+        zone_name: str, area_table: pd.DataFrame
+    ) -> dict[str, object]:
         _label_summary = summarize_area_labels(area_table)
         _year_summary = summarize_area_years(area_table)
-        _value_summary = summarize_area_values(area_table, _label_summary["present_label_columns"])
+        _value_summary = summarize_area_values(
+            area_table, _label_summary["present_label_columns"]
+        )
         _hard_messages = list(_year_summary["hard_messages"])
         _note_messages = list(_year_summary["note_messages"])
 
@@ -398,11 +440,17 @@ def define_area_validation_helper(
         if not _label_summary["present_label_columns"]:
             _hard_messages.append("no expected AFOLU label columns are present")
         if _value_summary["non_numeric_count"]:
-            _hard_messages.append(f"non-numeric area cells: {_value_summary['non_numeric_count']}")
+            _hard_messages.append(
+                f"non-numeric area cells: {_value_summary['non_numeric_count']}"
+            )
         if _value_summary["infinite_count"]:
-            _hard_messages.append(f"infinite area cells: {_value_summary['infinite_count']}")
+            _hard_messages.append(
+                f"infinite area cells: {_value_summary['infinite_count']}"
+            )
         if _value_summary["negative_count"]:
-            _hard_messages.append(f"negative area cells: {_value_summary['negative_count']}")
+            _hard_messages.append(
+                f"negative area cells: {_value_summary['negative_count']}"
+            )
         if _value_summary["missing_value_count"]:
             _note_messages.append(
                 f"missing area cells normalized to zero: {_value_summary['missing_value_count']}"
@@ -429,21 +477,24 @@ def define_area_validation_helper(
             **_value_summary,
         }
 
-
     "area validation helper defined"
     return (validate_area_table,)
 
 
 @app.cell
 def define_transition_validation_helper(LABEL_LIST, np, pd, xr):
-    def validate_transition_table(zone_name: str, transition_table: xr.DataArray) -> dict[str, object]:
+    def validate_transition_table(
+        zone_name: str, transition_table: xr.DataArray
+    ) -> dict[str, object]:
         _expected_labels = list(LABEL_LIST)
         _hard_messages: list[str] = []
         _note_messages: list[str] = []
         _dims = tuple(transition_table.dims)
         _dims_match = _dims == ("year", "start", "end")
         if not _dims_match:
-            _hard_messages.append(f"dimensions are {_dims}, expected ('year', 'start', 'end')")
+            _hard_messages.append(
+                f"dimensions are {_dims}, expected ('year', 'start', 'end')"
+            )
 
         _start_labels = (
             [str(_label) for _label in transition_table.coords["start"].to_numpy()]
@@ -463,7 +514,9 @@ def define_transition_validation_helper(LABEL_LIST, np, pd, xr):
             _hard_messages.append("end coordinates do not match LABEL_LIST")
 
         try:
-            _year_values = pd.Index(transition_table.coords["year"].to_numpy().astype(int), name="year")
+            _year_values = pd.Index(
+                transition_table.coords["year"].to_numpy().astype(int), name="year"
+            )
             _year_coord_valid = True
             _duplicate_year_count = int(_year_values.duplicated().sum())
             _year_min = int(_year_values.min()) if len(_year_values) else None
@@ -475,10 +528,14 @@ def define_transition_validation_helper(LABEL_LIST, np, pd, xr):
             _year_min = None
             _year_max = None
             _has_2021_transition = False
-            _hard_messages.append("transition year coordinate cannot be interpreted as integer years")
+            _hard_messages.append(
+                "transition year coordinate cannot be interpreted as integer years"
+            )
 
         if _duplicate_year_count:
-            _hard_messages.append(f"duplicate transition years: {_duplicate_year_count}")
+            _hard_messages.append(
+                f"duplicate transition years: {_duplicate_year_count}"
+            )
         _value_array = np.asarray(transition_table.to_numpy(), dtype=float)
         _non_finite_count = int((~np.isfinite(_value_array)).sum())
         _negative_count = int((_value_array < 0).sum())
@@ -508,7 +565,6 @@ def define_transition_validation_helper(LABEL_LIST, np, pd, xr):
             "negative_count": _negative_count,
             "has_2021_transition": _has_2021_transition,
         }
-
 
     "transition validation helper defined"
     return (validate_transition_table,)
@@ -580,14 +636,20 @@ def define_reconciliation_helper(LABEL_LIST, normalize_area_table, np, pd, xr):
         _area = normalize_area_table(area_table)
         _area_years = {int(_year) for _year in _area.index}
         _max_area_year = max(_area_years) if _area_years else None
-        _transition_years = [int(_year) for _year in transition_table.coords["year"].to_numpy()]
+        _transition_years = [
+            int(_year) for _year in transition_table.coords["year"].to_numpy()
+        ]
         _max_transition_year = max(_transition_years) if _transition_years else None
 
         _rows: list[dict[str, object]] = []
         for _year in _transition_years:
             if _year in _area_years:
                 _start_from_transition = (
-                    transition_table.sel(year=_year).sum(dim="end").to_series().reindex(_labels).fillna(0.0)
+                    transition_table.sel(year=_year)
+                    .sum(dim="end")
+                    .to_series()
+                    .reindex(_labels)
+                    .fillna(0.0)
                 )
                 _start_from_area = _area.loc[_year, _labels].astype(float)
                 _diff = (_start_from_transition - _start_from_area).abs()
@@ -599,7 +661,9 @@ def define_reconciliation_helper(LABEL_LIST, normalize_area_table, np, pd, xr):
                         "area_year": _year,
                         "check": "start_year_area",
                         "comparison_available": True,
-                        "reconciliation_status": "pass" if _max_abs_diff <= tolerance_m2 else "fail",
+                        "reconciliation_status": "pass"
+                        if _max_abs_diff <= tolerance_m2
+                        else "fail",
                         "max_abs_diff_m2": _max_abs_diff,
                         "sum_abs_diff_m2": float(_diff.sum()),
                         "worst_label": str(_diff.idxmax()),
@@ -625,7 +689,11 @@ def define_reconciliation_helper(LABEL_LIST, normalize_area_table, np, pd, xr):
             _next_year = _year + 1
             if _next_year in _area_years:
                 _end_from_transition = (
-                    transition_table.sel(year=_year).sum(dim="start").to_series().reindex(_labels).fillna(0.0)
+                    transition_table.sel(year=_year)
+                    .sum(dim="start")
+                    .to_series()
+                    .reindex(_labels)
+                    .fillna(0.0)
                 )
                 _end_from_area = _area.loc[_next_year, _labels].astype(float)
                 _diff = (_end_from_transition - _end_from_area).abs()
@@ -637,7 +705,9 @@ def define_reconciliation_helper(LABEL_LIST, normalize_area_table, np, pd, xr):
                         "area_year": _next_year,
                         "check": "next_year_area",
                         "comparison_available": True,
-                        "reconciliation_status": "pass" if _max_abs_diff <= tolerance_m2 else "fail",
+                        "reconciliation_status": "pass"
+                        if _max_abs_diff <= tolerance_m2
+                        else "fail",
                         "max_abs_diff_m2": _max_abs_diff,
                         "sum_abs_diff_m2": float(_diff.sum()),
                         "worst_label": str(_diff.idxmax()),
@@ -659,7 +729,9 @@ def define_reconciliation_helper(LABEL_LIST, normalize_area_table, np, pd, xr):
                         "check": "next_year_area",
                         "comparison_available": False,
                         "reconciliation_status": (
-                            "expected_historical_edge" if _expected_edge else "missing_next_area_year"
+                            "expected_historical_edge"
+                            if _expected_edge
+                            else "missing_next_area_year"
                         ),
                         "max_abs_diff_m2": np.nan,
                         "sum_abs_diff_m2": np.nan,
@@ -669,7 +741,6 @@ def define_reconciliation_helper(LABEL_LIST, normalize_area_table, np, pd, xr):
                 )
 
         return _rows
-
 
     "reconciliation helper defined"
     return (build_reconciliation_rows,)
@@ -701,7 +772,8 @@ def reconcile_tables(
     zones_ready_for_reconciliation = tuple(
         _zone_name
         for _zone_name in loaded_zone_names
-        if _zone_name not in _area_fail_zones and _zone_name not in _transition_fail_zones
+        if _zone_name not in _area_fail_zones
+        and _zone_name not in _transition_fail_zones
     )
 
     _reconciliation_rows = []
@@ -783,12 +855,18 @@ def summarize_zone_status(
     transition_contract_checks,
 ):
     _area_checks_by_zone = (
-        area_contract_checks.set_index("zone") if not area_contract_checks.empty else pd.DataFrame()
+        area_contract_checks.set_index("zone")
+        if not area_contract_checks.empty
+        else pd.DataFrame()
     )
     _transition_checks_by_zone = (
-        transition_contract_checks.set_index("zone") if not transition_contract_checks.empty else pd.DataFrame()
+        transition_contract_checks.set_index("zone")
+        if not transition_contract_checks.empty
+        else pd.DataFrame()
     )
-    _load_errors_by_zone = load_errors.groupby("zone").size().to_dict() if not load_errors.empty else {}
+    _load_errors_by_zone = (
+        load_errors.groupby("zone").size().to_dict() if not load_errors.empty else {}
+    )
 
     _zone_status_rows = []
     for _zone_name in complete_zone_names:
@@ -807,7 +885,9 @@ def summarize_zone_status(
 
         if _zone_name in _transition_checks_by_zone.index:
             _transition_row = _transition_checks_by_zone.loc[_zone_name]
-            _transition_hard_count = int(_transition_row["transition_hard_failure_count"])
+            _transition_hard_count = int(
+                _transition_row["transition_hard_failure_count"]
+            )
             _transition_note_count = int(_transition_row["transition_note_count"])
             _transition_issue_summary = str(_transition_row["transition_issue_summary"])
         else:
@@ -825,7 +905,10 @@ def summarize_zone_status(
                 .sum()
             )
             _expected_edge_count = int(
-                (_zone_reconciliation["reconciliation_status"] == "expected_historical_edge").sum()
+                (
+                    _zone_reconciliation["reconciliation_status"]
+                    == "expected_historical_edge"
+                ).sum()
             )
             _max_reconciliation_diff_m2 = (
                 float(_zone_reconciliation["max_abs_diff_m2"].max())
@@ -844,7 +927,9 @@ def summarize_zone_status(
             + _reconciliation_failure_count
         )
         _note_count = _area_note_count + _transition_note_count
-        _contract_status = "fail" if _hard_failure_count else "warn" if _note_count else "pass"
+        _contract_status = (
+            "fail" if _hard_failure_count else "warn" if _note_count else "pass"
+        )
 
         _issue_parts = [
             _part
@@ -852,9 +937,13 @@ def summarize_zone_status(
             if _part and _part != "nan"
         ]
         if _reconciliation_failure_count:
-            _issue_parts.append(f"reconciliation failures: {_reconciliation_failure_count}")
+            _issue_parts.append(
+                f"reconciliation failures: {_reconciliation_failure_count}"
+            )
         if _expected_edge_count:
-            _issue_parts.append(f"expected 2021 -> 2022 edge comparisons: {_expected_edge_count}")
+            _issue_parts.append(
+                f"expected 2021 -> 2022 edge comparisons: {_expected_edge_count}"
+            )
 
         _zone_status_rows.append(
             {
@@ -925,7 +1014,11 @@ def build_contract_conclusion(
         .reindex(["pass", "warn", "fail"], fill_value=0)
     )
     _safe_zone_count = len(safe_historical_zone_names)
-    _first_safe_zones = ", ".join(safe_historical_zone_names[:10]) if safe_historical_zone_names else "none"
+    _first_safe_zones = (
+        ", ".join(safe_historical_zone_names[:10])
+        if safe_historical_zone_names
+        else "none"
+    )
     _failure_count = int(_status_counts["fail"])
     _max_diff = (
         reconciliation_diagnostics.loc[
@@ -940,8 +1033,8 @@ def build_contract_conclusion(
         f"""
     ### Contract Check Result
 
-    - Pass zones: `{int(_status_counts['pass'])}`
-    - Warn zones: `{int(_status_counts['warn'])}`
+    - Pass zones: `{int(_status_counts["pass"])}`
+    - Warn zones: `{int(_status_counts["warn"])}`
     - Fail zones: `{_failure_count}`
     - Usable zones for `02_chen_2020_compatibility.py`: `{_safe_zone_count}`
     - First usable zones: `{_first_safe_zones}`

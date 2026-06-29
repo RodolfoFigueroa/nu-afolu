@@ -79,7 +79,6 @@ def resolve_out_path(Path, os, pd):
     PROJECT_ROOT = Path.cwd()
     OUT_PATH_KEY = "OUT_PATH"
 
-
     def _read_dotenv_value(path: Path, key: str) -> str | None:
         if not path.exists():
             return None
@@ -93,7 +92,6 @@ def resolve_out_path(Path, os, pd):
                 return _value.strip().strip('"').strip("'")
 
         return None
-
 
     _out_path_raw = os.environ.get(OUT_PATH_KEY)
     OUT_PATH_SOURCE = "environment variable"
@@ -144,7 +142,10 @@ def summarize_project_constants(
         [
             {"name": "CHEN_COLLECTION_ID", "value": CHEN_COLLECTION_ID},
             {"name": "CHEN_URBAN_VALUE", "value": CHEN_URBAN_VALUE},
-            {"name": "CHEN_YEARS", "value": ", ".join(str(year) for year in CHEN_YEARS)},
+            {
+                "name": "CHEN_YEARS",
+                "value": ", ".join(str(year) for year in CHEN_YEARS),
+            },
             {"name": "SSP_NAMES", "value": ", ".join(SSP_NAMES)},
             {"name": "AFOLU label count", "value": len(LABEL_LIST)},
         ]
@@ -251,7 +252,9 @@ def build_zone_inventory(ARTIFACT_SPECS, OUT_PATH, pd, zone_partitions):
         _discovered_zone_set.update(_zone_set)
 
     discovered_zone_names = tuple(sorted(_discovered_zone_set))
-    inventory_zone_names = tuple(sorted(set(partition_zone_names).union(discovered_zone_names)))
+    inventory_zone_names = tuple(
+        sorted(set(partition_zone_names).union(discovered_zone_names))
+    )
 
     _zone_inventory_rows = []
     for _zone_name in inventory_zone_names:
@@ -282,9 +285,15 @@ def build_zone_inventory(ARTIFACT_SPECS, OUT_PATH, pd, zone_partitions):
     zone_availability_summary = pd.DataFrame(
         [
             {"metric": "canonical partition zones", "value": len(partition_zone_names)},
-            {"metric": "zones discovered from artifacts", "value": len(discovered_zone_names)},
+            {
+                "metric": "zones discovered from artifacts",
+                "value": len(discovered_zone_names),
+            },
             {"metric": "zones in inventory table", "value": len(inventory_zone_names)},
-            {"metric": "zones with complete artifact sets", "value": len(eligible_zone_names)},
+            {
+                "metric": "zones with complete artifact sets",
+                "value": len(eligible_zone_names),
+            },
         ]
     )
 
@@ -325,7 +334,6 @@ def check_earth_engine_readiness(CHEN_COLLECTION_ID, SSP_NAMES, ee, pd):
         message = str(exc).replace("\n", " ")
         return message[:500] + ("..." if len(message) > 500 else "")
 
-
     def _check_earth_engine_readiness() -> dict[str, object]:
         try:
             ee.Initialize()
@@ -348,7 +356,9 @@ def check_earth_engine_readiness(CHEN_COLLECTION_ID, SSP_NAMES, ee, pd):
                 "chen_collection_metadata_readable": True,
                 "chen_image_count": _image_count,
                 "first_image_bands": ", ".join(_first_image_bands),
-                "expected_ssp_bands_present": set(SSP_NAMES).issubset(_first_image_bands),
+                "expected_ssp_bands_present": set(SSP_NAMES).issubset(
+                    _first_image_bands
+                ),
                 "message": "Earth Engine initialized and Chen collection metadata is readable.",
             }
         except Exception as exc:  # noqa: BLE001
@@ -360,7 +370,6 @@ def check_earth_engine_readiness(CHEN_COLLECTION_ID, SSP_NAMES, ee, pd):
                 "expected_ssp_bands_present": False,
                 "message": _short_error(exc),
             }
-
 
     earth_engine_readiness = pd.DataFrame([_check_earth_engine_readiness()])
 
@@ -398,10 +407,14 @@ def build_readiness_conclusion(
         _readiness_reason = "`OUT_PATH` is configured but the directory does not exist."
     elif not eligible_zone_names:
         _readiness_status = "Not ready"
-        _readiness_reason = "No zone has a complete set of required historical artifacts."
+        _readiness_reason = (
+            "No zone has a complete set of required historical artifacts."
+        )
     elif not _ee_row["earth_engine_initialized"]:
         _readiness_status = "Partially ready"
-        _readiness_reason = "Historical artifacts are present, but Earth Engine did not initialize."
+        _readiness_reason = (
+            "Historical artifacts are present, but Earth Engine did not initialize."
+        )
     elif not _ee_row["chen_collection_metadata_readable"]:
         _readiness_status = "Partially ready"
         _readiness_reason = "Historical artifacts are present, but Chen collection metadata was not readable."
@@ -419,7 +432,7 @@ def build_readiness_conclusion(
     {_readiness_reason}
 
     - Complete zones available for `01_historical_contract_checks.py`: `{len(eligible_zone_names)}`
-    - First complete zones: `{', '.join(eligible_zone_names[:10]) if eligible_zone_names else 'none'}`
+    - First complete zones: `{", ".join(eligible_zone_names[:10]) if eligible_zone_names else "none"}`
     - Historical artifact contracts were inventoried only; they were not validated here.
     - Chen 2020 compatibility was not evaluated here and remains the responsibility of `02_chen_2020_compatibility.py`.
     """

@@ -89,7 +89,6 @@ def _(Path, os, pd):
     DEMAND_CALIBRATION_CHOICE = "glc_2020_plus_clipped_chen_deltas"
     NEGATIVE_DELTA_POLICY = "clip_to_zero_and_record"
 
-
     def read_dotenv_value(path: Path, key: str) -> str | None:
         if not path.exists():
             return None
@@ -104,7 +103,6 @@ def _(Path, os, pd):
 
         return None
 
-
     _out_path_raw = os.environ.get(OUT_PATH_KEY)
     OUT_PATH_SOURCE = "environment variable"
     if not _out_path_raw:
@@ -116,12 +114,36 @@ def _(Path, os, pd):
 
     configuration_summary = pd.DataFrame(
         [
-            {"setting": OUT_PATH_KEY, "value": str(OUT_PATH) if OUT_PATH else "not configured", "source": OUT_PATH_SOURCE},
-            {"setting": "BASELINE_YEAR", "value": BASELINE_YEAR, "source": "Chen/GLC compatibility contract"},
-            {"setting": "CHEN_SCALE_M", "value": CHEN_SCALE_M, "source": "Chen approximate resolution"},
-            {"setting": "DEMAND_BASELINE_CHOICE", "value": DEMAND_BASELINE_CHOICE, "source": "analysis_contracts.md"},
-            {"setting": "DEMAND_CALIBRATION_CHOICE", "value": DEMAND_CALIBRATION_CHOICE, "source": "notebook default"},
-            {"setting": "NEGATIVE_DELTA_POLICY", "value": NEGATIVE_DELTA_POLICY, "source": "analysis_contracts.md"},
+            {
+                "setting": OUT_PATH_KEY,
+                "value": str(OUT_PATH) if OUT_PATH else "not configured",
+                "source": OUT_PATH_SOURCE,
+            },
+            {
+                "setting": "BASELINE_YEAR",
+                "value": BASELINE_YEAR,
+                "source": "Chen/GLC compatibility contract",
+            },
+            {
+                "setting": "CHEN_SCALE_M",
+                "value": CHEN_SCALE_M,
+                "source": "Chen approximate resolution",
+            },
+            {
+                "setting": "DEMAND_BASELINE_CHOICE",
+                "value": DEMAND_BASELINE_CHOICE,
+                "source": "analysis_contracts.md",
+            },
+            {
+                "setting": "DEMAND_CALIBRATION_CHOICE",
+                "value": DEMAND_CALIBRATION_CHOICE,
+                "source": "notebook default",
+            },
+            {
+                "setting": "NEGATIVE_DELTA_POLICY",
+                "value": NEGATIVE_DELTA_POLICY,
+                "source": "analysis_contracts.md",
+            },
         ]
     )
 
@@ -165,7 +187,10 @@ def _(
         [
             {"field": "collection", "value": CHEN_COLLECTION_ID},
             {"field": "urban pixel value", "value": CHEN_URBAN_VALUE},
-            {"field": "projection years", "value": ", ".join(str(_year) for _year in CHEN_YEARS)},
+            {
+                "field": "projection years",
+                "value": ", ".join(str(_year) for _year in CHEN_YEARS),
+            },
             {"field": "scenarios", "value": ", ".join(SSP_NAMES)},
         ]
     )
@@ -204,7 +229,10 @@ def _(OUT_PATH, Path, pd, zone_partitions):
     REQUIRED_ARTIFACT_SPECS = {
         "bbox_ee": {"relative_dir": Path("bbox") / "ee", "extension": ".json"},
         "area_table": {"relative_dir": Path("area_table"), "extension": ".parquet"},
-        "transition_table": {"relative_dir": Path("transition_table"), "extension": ".nc"},
+        "transition_table": {
+            "relative_dir": Path("transition_table"),
+            "extension": ".nc",
+        },
     }
 
     partition_zone_names = tuple(zone_partitions.get_partition_keys())
@@ -231,16 +259,30 @@ def _(OUT_PATH, Path, pd, zone_partitions):
 
     input_zone_inventory = pd.DataFrame(_zone_rows)
     candidate_zone_names = tuple(
-        input_zone_inventory.loc[input_zone_inventory["complete_required_inputs"], "zone"]
+        input_zone_inventory.loc[
+            input_zone_inventory["complete_required_inputs"], "zone"
+        ]
     )
 
     input_zone_summary = pd.DataFrame(
         [
             {"metric": "canonical partition zones", "value": len(partition_zone_names)},
-            {"metric": "zones with required local inputs", "value": len(candidate_zone_names)},
-            {"metric": "bbox/ee files discovered", "value": len(artifact_zone_sets["bbox_ee"])},
-            {"metric": "area_table files discovered", "value": len(artifact_zone_sets["area_table"])},
-            {"metric": "transition_table files discovered", "value": len(artifact_zone_sets["transition_table"])},
+            {
+                "metric": "zones with required local inputs",
+                "value": len(candidate_zone_names),
+            },
+            {
+                "metric": "bbox/ee files discovered",
+                "value": len(artifact_zone_sets["bbox_ee"]),
+            },
+            {
+                "metric": "area_table files discovered",
+                "value": len(artifact_zone_sets["area_table"]),
+            },
+            {
+                "metric": "transition_table files discovered",
+                "value": len(artifact_zone_sets["transition_table"]),
+            },
         ]
     )
 
@@ -276,7 +318,9 @@ def _(
                     {"zone": _zone_name, "error": f"missing {BASELINE_YEAR} area row"}
                 )
                 continue
-            _settlement_area_m2 = float(_normalized_area.loc[BASELINE_YEAR, "settlements"])
+            _settlement_area_m2 = float(
+                _normalized_area.loc[BASELINE_YEAR, "settlements"]
+            )
             if not np.isfinite(_settlement_area_m2) or _settlement_area_m2 < 0:
                 _baseline_error_rows.append(
                     {"zone": _zone_name, "error": "invalid settlements area"}
@@ -287,10 +331,13 @@ def _(
                     "zone": _zone_name,
                     "glc_settlements_2020_m2": _settlement_area_m2,
                     "glc_settlements_2020_ha": _settlement_area_m2 / 10_000.0,
-                    "near_zero_glc_baseline": _settlement_area_m2 < RATIO_DENOMINATOR_FLOOR_M2,
+                    "near_zero_glc_baseline": _settlement_area_m2
+                    < RATIO_DENOMINATOR_FLOOR_M2,
                     "area_year_min": int(_normalized_area.index.min()),
                     "area_year_max": int(_normalized_area.index.max()),
-                    "has_observed_area_after_2020": bool((_normalized_area.index > BASELINE_YEAR).any()),
+                    "has_observed_area_after_2020": bool(
+                        (_normalized_area.index > BASELINE_YEAR).any()
+                    ),
                 }
             )
         except Exception as _exc:  # noqa: BLE001
@@ -303,9 +350,20 @@ def _(
     baseline_summary = pd.DataFrame(
         [
             {"metric": "candidate zones", "value": len(candidate_zone_names)},
-            {"metric": "zones with usable GLC 2020 settlements", "value": len(safe_historical_zone_names)},
-            {"metric": "near-zero GLC baselines", "value": int(glc_settlement_baseline["near_zero_glc_baseline"].sum())},
-            {"metric": "zones with observed area after 2020", "value": int(glc_settlement_baseline["has_observed_area_after_2020"].sum())},
+            {
+                "metric": "zones with usable GLC 2020 settlements",
+                "value": len(safe_historical_zone_names),
+            },
+            {
+                "metric": "near-zero GLC baselines",
+                "value": int(glc_settlement_baseline["near_zero_glc_baseline"].sum()),
+            },
+            {
+                "metric": "zones with observed area after 2020",
+                "value": int(
+                    glc_settlement_baseline["has_observed_area_after_2020"].sum()
+                ),
+            },
             {"metric": "baseline load errors", "value": len(baseline_load_errors)},
         ]
     )
@@ -347,14 +405,15 @@ def _(CHEN_COLLECTION_ID, CHEN_YEARS, SSP_NAMES, ee, pd):
         message = str(exc).replace("\n", " ")
         return message[:500] + ("..." if len(message) > 500 else "")
 
-
     try:
         ee.Initialize()
         chen_collection = ee.ImageCollection(CHEN_COLLECTION_ID)
         chen_collection_size = int(chen_collection.size().getInfo())
         _first_image = ee.Image(chen_collection.toList(chen_collection_size).get(0))
         chen_first_image_band_names = tuple(_first_image.bandNames().getInfo())
-        chen_source_ready = chen_collection_size >= len(CHEN_YEARS) and set(SSP_NAMES).issubset(chen_first_image_band_names)
+        chen_source_ready = chen_collection_size >= len(CHEN_YEARS) and set(
+            SSP_NAMES
+        ).issubset(chen_first_image_band_names)
         chen_source_error = ""
     except Exception as _exc:  # noqa: BLE001
         chen_collection = None
@@ -369,7 +428,9 @@ def _(CHEN_COLLECTION_ID, CHEN_YEARS, SSP_NAMES, ee, pd):
                 "collection_size": chen_collection_size,
                 "expected_year_count": len(CHEN_YEARS),
                 "first_image_band_names": ", ".join(chen_first_image_band_names),
-                "expected_ssp_bands_present": set(SSP_NAMES).issubset(chen_first_image_band_names),
+                "expected_ssp_bands_present": set(SSP_NAMES).issubset(
+                    chen_first_image_band_names
+                ),
                 "source_ready": chen_source_ready,
                 "error": chen_source_error,
             }
@@ -402,7 +463,6 @@ def _(
         with path.open(encoding="utf-8") as file:
             return ee.Geometry(ee.deserializer.decode(json.load(file)))
 
-
     def build_chen_area_stack():
         collection_list = chen_collection.toList(chen_collection_size)
         bands = []
@@ -419,7 +479,6 @@ def _(
                 )
                 band_keys.append((ssp, int(year), band_key))
         return ee.Image.cat(bands), tuple(band_keys)
-
 
     if chen_source_ready:
         chen_area_stack, chen_area_band_keys = build_chen_area_stack()
@@ -451,16 +510,16 @@ def _(
     if chen_source_ready and chen_area_stack is not None:
         for _zone_name in safe_historical_zone_names:
             try:
-                _geometry = load_ee_geometry(OUT_PATH / "bbox" / "ee" / f"{_zone_name}.json")
-                _result = (
-                    chen_area_stack.reduceRegion(
-                        reducer=ee.Reducer.sum(),
-                        geometry=_geometry,
-                        scale=CHEN_SCALE_M,
-                        maxPixels=int(1e10),
-                        tileScale=4,
-                    ).getInfo()
+                _geometry = load_ee_geometry(
+                    OUT_PATH / "bbox" / "ee" / f"{_zone_name}.json"
                 )
+                _result = chen_area_stack.reduceRegion(
+                    reducer=ee.Reducer.sum(),
+                    geometry=_geometry,
+                    scale=CHEN_SCALE_M,
+                    maxPixels=int(1e10),
+                    tileScale=4,
+                ).getInfo()
                 for _ssp, _year, _band_key in chen_area_band_keys:
                     _area_m2 = float(_result.get(_band_key) or 0.0)
                     _trajectory_rows.append(
@@ -473,7 +532,9 @@ def _(
                         }
                     )
             except Exception as _exc:  # noqa: BLE001
-                _chen_error_rows.append({"zone": _zone_name, "error": short_error(_exc)})
+                _chen_error_rows.append(
+                    {"zone": _zone_name, "error": short_error(_exc)}
+                )
     else:
         _chen_error_rows.extend(
             {"zone": _zone_name, "error": chen_source_error}
@@ -489,7 +550,12 @@ def _(
     chen_reduction_summary = pd.DataFrame(
         [
             {"metric": "zones requested", "value": len(safe_historical_zone_names)},
-            {"metric": "zones reduced successfully", "value": chen_urban_trajectory["zone"].nunique() if not chen_urban_trajectory.empty else 0},
+            {
+                "metric": "zones reduced successfully",
+                "value": chen_urban_trajectory["zone"].nunique()
+                if not chen_urban_trajectory.empty
+                else 0,
+            },
             {"metric": "trajectory rows", "value": len(chen_urban_trajectory)},
             {"metric": "zone reduction errors", "value": len(chen_reduction_errors)},
         ]
@@ -544,18 +610,23 @@ def _(
     )
 
     chen_2020_compatibility = chen_2020_compatibility.assign(
-        signed_difference_m2=lambda _df: _df["chen_urban_area_m2"] - _df["glc_settlements_2020_m2"],
+        signed_difference_m2=lambda _df: (
+            _df["chen_urban_area_m2"] - _df["glc_settlements_2020_m2"]
+        ),
         absolute_difference_m2=lambda _df: _df["signed_difference_m2"].abs(),
         signed_difference_ha=lambda _df: _df["signed_difference_m2"] / 10_000.0,
         absolute_difference_ha=lambda _df: _df["absolute_difference_m2"] / 10_000.0,
-        ratio_denominator_is_stable=lambda _df: _df["glc_settlements_2020_m2"] >= RATIO_DENOMINATOR_FLOOR_M2,
+        ratio_denominator_is_stable=lambda _df: (
+            _df["glc_settlements_2020_m2"] >= RATIO_DENOMINATOR_FLOOR_M2
+        ),
     )
 
     _stable_denominator = chen_2020_compatibility["ratio_denominator_is_stable"]
     chen_2020_compatibility = chen_2020_compatibility.assign(
         chen_to_glc_ratio=np.where(
             _stable_denominator,
-            chen_2020_compatibility["chen_urban_area_m2"] / chen_2020_compatibility["glc_settlements_2020_m2"],
+            chen_2020_compatibility["chen_urban_area_m2"]
+            / chen_2020_compatibility["glc_settlements_2020_m2"],
             np.nan,
         )
     )
@@ -563,7 +634,6 @@ def _(
         ratio_error=lambda _df: _df["chen_to_glc_ratio"] - 1.0,
         absolute_ratio_error=lambda _df: _df["ratio_error"].abs(),
     )
-
 
     def _assign_compatibility_decision(row: pd.Series) -> str:
         _ratio_flag = (
@@ -581,7 +651,6 @@ def _(
             return "manual_review_large_ratio_mismatch"
         return "carry_forward_with_documented_mismatch"
 
-
     zone_compatibility_decisions = (
         chen_2020_compatibility.groupby("zone", dropna=False)
         .agg(
@@ -589,13 +658,20 @@ def _(
             median_chen_urban_2020_ha=("chen_urban_area_ha", "median"),
             max_abs_difference_ha=("absolute_difference_ha", "max"),
             max_abs_ratio_error=("absolute_ratio_error", "max"),
-            ratio_unstable_rows=("ratio_denominator_is_stable", lambda _series: int((~_series).sum())),
+            ratio_unstable_rows=(
+                "ratio_denominator_is_stable",
+                lambda _series: int((~_series).sum()),
+            ),
         )
         .reset_index()
     )
     zone_compatibility_decisions = zone_compatibility_decisions.assign(
-        compatibility_decision=lambda _df: _df.apply(_assign_compatibility_decision, axis=1),
-        needs_manual_review=lambda _df: _df["compatibility_decision"].str.startswith("manual_review"),
+        compatibility_decision=lambda _df: _df.apply(
+            _assign_compatibility_decision, axis=1
+        ),
+        needs_manual_review=lambda _df: _df["compatibility_decision"].str.startswith(
+            "manual_review"
+        ),
     )
 
     compatibility_decision_summary = (
@@ -607,7 +683,9 @@ def _(
 
     manual_review_zones = zone_compatibility_decisions.loc[
         zone_compatibility_decisions["needs_manual_review"]
-    ].sort_values(["max_abs_difference_ha", "max_abs_ratio_error"], ascending=[False, False])
+    ].sort_values(
+        ["max_abs_difference_ha", "max_abs_ratio_error"], ascending=[False, False]
+    )
 
     compatibility_decision_summary
     return (
@@ -647,8 +725,12 @@ def _(BASELINE_YEAR, CHEN_YEARS, chen_urban_trajectory):
         )
         .reset_index()
         .assign(
-            total_chen_urban_area_ha=lambda _df: _df["total_chen_urban_area_m2"] / 10_000.0,
-            median_zone_chen_urban_area_ha=lambda _df: _df["median_zone_chen_urban_area_m2"] / 10_000.0,
+            total_chen_urban_area_ha=lambda _df: (
+                _df["total_chen_urban_area_m2"] / 10_000.0
+            ),
+            median_zone_chen_urban_area_ha=lambda _df: (
+                _df["median_zone_chen_urban_area_m2"] / 10_000.0
+            ),
         )
     )
 
@@ -661,12 +743,18 @@ def _(BASELINE_YEAR, CHEN_YEARS, chen_urban_trajectory):
         ["ssp", "total_chen_urban_area_m2"],
     ].rename(columns={"total_chen_urban_area_m2": "total_chen_urban_2100_m2"})
 
-    trajectory_summary_by_ssp = _trajectory_start.merge(_trajectory_end, on="ssp", how="inner")
+    trajectory_summary_by_ssp = _trajectory_start.merge(
+        _trajectory_end, on="ssp", how="inner"
+    )
     trajectory_summary_by_ssp = trajectory_summary_by_ssp.assign(
-        net_chen_change_2020_2100_m2=lambda _df: _df["total_chen_urban_2100_m2"] - _df["total_chen_urban_2020_m2"],
+        net_chen_change_2020_2100_m2=lambda _df: (
+            _df["total_chen_urban_2100_m2"] - _df["total_chen_urban_2020_m2"]
+        ),
         total_chen_urban_2020_ha=lambda _df: _df["total_chen_urban_2020_m2"] / 10_000.0,
         total_chen_urban_2100_ha=lambda _df: _df["total_chen_urban_2100_m2"] / 10_000.0,
-        net_chen_change_2020_2100_ha=lambda _df: _df["net_chen_change_2020_2100_m2"] / 10_000.0,
+        net_chen_change_2020_2100_ha=lambda _df: (
+            _df["net_chen_change_2020_2100_m2"] / 10_000.0
+        ),
     )
 
     trajectory_summary_by_ssp
@@ -721,12 +809,18 @@ def _(
     np,
     zone_compatibility_decisions,
 ):
-    _trajectory_sorted = chen_urban_trajectory.sort_values(["zone", "ssp", "year"]).copy()
-    _trajectory_sorted["start_year"] = _trajectory_sorted.groupby(["zone", "ssp"])["year"].shift()
-    _trajectory_sorted["start_chen_urban_area_m2"] = _trajectory_sorted.groupby(["zone", "ssp"])[
-        "chen_urban_area_m2"
+    _trajectory_sorted = chen_urban_trajectory.sort_values(
+        ["zone", "ssp", "year"]
+    ).copy()
+    _trajectory_sorted["start_year"] = _trajectory_sorted.groupby(["zone", "ssp"])[
+        "year"
     ].shift()
-    _trajectory_sorted["start_chen_urban_area_ha"] = _trajectory_sorted["start_chen_urban_area_m2"] / 10_000.0
+    _trajectory_sorted["start_chen_urban_area_m2"] = _trajectory_sorted.groupby(
+        ["zone", "ssp"]
+    )["chen_urban_area_m2"].shift()
+    _trajectory_sorted["start_chen_urban_area_ha"] = (
+        _trajectory_sorted["start_chen_urban_area_m2"] / 10_000.0
+    )
 
     chen_settlement_demand_table = (
         _trajectory_sorted.loc[_trajectory_sorted["start_year"].notna()]
@@ -740,11 +834,17 @@ def _(
         .copy()
     )
 
-    chen_settlement_demand_table["start_year"] = chen_settlement_demand_table["start_year"].astype(int)
-    chen_settlement_demand_table["end_year"] = chen_settlement_demand_table["end_year"].astype(int)
+    chen_settlement_demand_table["start_year"] = chen_settlement_demand_table[
+        "start_year"
+    ].astype(int)
+    chen_settlement_demand_table["end_year"] = chen_settlement_demand_table[
+        "end_year"
+    ].astype(int)
     chen_settlement_demand_table = chen_settlement_demand_table.assign(
         interval_years=lambda _df: _df["end_year"] - _df["start_year"],
-        raw_delta_m2=lambda _df: _df["end_chen_urban_area_m2"] - _df["start_chen_urban_area_m2"],
+        raw_delta_m2=lambda _df: (
+            _df["end_chen_urban_area_m2"] - _df["start_chen_urban_area_m2"]
+        ),
     )
     chen_settlement_demand_table = chen_settlement_demand_table.assign(
         raw_delta_ha=lambda _df: _df["raw_delta_m2"] / 10_000.0,
@@ -758,11 +858,15 @@ def _(
             default="unknown",
         ),
         demand_m2=lambda _df: _df["raw_delta_m2"].clip(lower=0.0),
-        clipped_negative_delta_m2=lambda _df: np.where(_df["raw_delta_m2"] < 0, -_df["raw_delta_m2"], 0.0),
+        clipped_negative_delta_m2=lambda _df: np.where(
+            _df["raw_delta_m2"] < 0, -_df["raw_delta_m2"], 0.0
+        ),
     )
     chen_settlement_demand_table = chen_settlement_demand_table.assign(
         demand_ha=lambda _df: _df["demand_m2"] / 10_000.0,
-        clipped_negative_delta_ha=lambda _df: _df["clipped_negative_delta_m2"] / 10_000.0,
+        clipped_negative_delta_ha=lambda _df: (
+            _df["clipped_negative_delta_m2"] / 10_000.0
+        ),
     )
 
     chen_settlement_demand_table = chen_settlement_demand_table.merge(
@@ -796,15 +900,19 @@ def _(
     chen_settlement_demand_table = chen_settlement_demand_table.sort_values(
         ["zone", "ssp", "start_year", "end_year"]
     ).reset_index(drop=True)
-    chen_settlement_demand_table["cumulative_raw_delta_from_2020_m2"] = chen_settlement_demand_table.groupby(
-        ["zone", "ssp"]
-    )["raw_delta_m2"].cumsum()
-    chen_settlement_demand_table["cumulative_demand_from_2020_m2"] = chen_settlement_demand_table.groupby(
-        ["zone", "ssp"]
-    )["demand_m2"].cumsum()
+    chen_settlement_demand_table["cumulative_raw_delta_from_2020_m2"] = (
+        chen_settlement_demand_table.groupby(["zone", "ssp"])["raw_delta_m2"].cumsum()
+    )
+    chen_settlement_demand_table["cumulative_demand_from_2020_m2"] = (
+        chen_settlement_demand_table.groupby(["zone", "ssp"])["demand_m2"].cumsum()
+    )
     chen_settlement_demand_table = chen_settlement_demand_table.assign(
-        glc_plus_raw_delta_area_m2=lambda _df: _df["glc_settlements_2020_m2"] + _df["cumulative_raw_delta_from_2020_m2"],
-        glc_plus_clipped_demand_area_m2=lambda _df: _df["glc_settlements_2020_m2"] + _df["cumulative_demand_from_2020_m2"],
+        glc_plus_raw_delta_area_m2=lambda _df: (
+            _df["glc_settlements_2020_m2"] + _df["cumulative_raw_delta_from_2020_m2"]
+        ),
+        glc_plus_clipped_demand_area_m2=lambda _df: (
+            _df["glc_settlements_2020_m2"] + _df["cumulative_demand_from_2020_m2"]
+        ),
         baseline_choice=DEMAND_BASELINE_CHOICE,
         calibration_choice=DEMAND_CALIBRATION_CHOICE,
         negative_delta_policy=NEGATIVE_DELTA_POLICY,
@@ -846,15 +954,26 @@ def _(
 @app.cell
 def _(chen_settlement_demand_table):
     demand_summary_by_interval_ssp = (
-        chen_settlement_demand_table.groupby(["start_year", "end_year", "ssp"], dropna=False)
+        chen_settlement_demand_table.groupby(
+            ["start_year", "end_year", "ssp"], dropna=False
+        )
         .agg(
             zones=("zone", "nunique"),
             total_raw_delta_ha=("raw_delta_ha", "sum"),
             total_demand_ha=("demand_ha", "sum"),
             total_clipped_negative_delta_ha=("clipped_negative_delta_ha", "sum"),
-            positive_delta_rows=("delta_status", lambda _series: int((_series == "positive").sum())),
-            zero_delta_rows=("delta_status", lambda _series: int((_series == "zero").sum())),
-            negative_delta_rows=("delta_status", lambda _series: int((_series == "negative").sum())),
+            positive_delta_rows=(
+                "delta_status",
+                lambda _series: int((_series == "positive").sum()),
+            ),
+            zero_delta_rows=(
+                "delta_status",
+                lambda _series: int((_series == "zero").sum()),
+            ),
+            negative_delta_rows=(
+                "delta_status",
+                lambda _series: int((_series == "negative").sum()),
+            ),
             manual_review_zone_rows=("needs_manual_review", "sum"),
         )
         .reset_index()
@@ -892,7 +1011,9 @@ def _(mo):
 @app.cell
 def _(chen_settlement_demand_table):
     negative_delta_diagnostics = (
-        chen_settlement_demand_table.loc[chen_settlement_demand_table["raw_delta_m2"] < 0]
+        chen_settlement_demand_table.loc[
+            chen_settlement_demand_table["raw_delta_m2"] < 0
+        ]
         .sort_values("clipped_negative_delta_m2", ascending=False)
         .reset_index(drop=True)
     )
@@ -1019,25 +1140,47 @@ def _(
         .sort_values(ascending=False)
     )
     _total_clipped_by_ssp = (
-        chen_settlement_demand_table.groupby("ssp", dropna=False)["clipped_negative_delta_ha"]
+        chen_settlement_demand_table.groupby("ssp", dropna=False)[
+            "clipped_negative_delta_ha"
+        ]
         .sum()
         .sort_values(ascending=False)
     )
-    _negative_interval_rows = int((chen_settlement_demand_table["delta_status"] == "negative").sum())
-    _zero_interval_rows = int((chen_settlement_demand_table["delta_status"] == "zero").sum())
-    _positive_interval_rows = int((chen_settlement_demand_table["delta_status"] == "positive").sum())
-    _manual_review_zone_count = int(zone_compatibility_decisions["needs_manual_review"].sum())
-    _max_negative_delta_ha = float(negative_delta_diagnostics["clipped_negative_delta_ha"].max()) if not negative_delta_diagnostics.empty else 0.0
-    _top_demand_ssp = _total_demand_by_ssp.index[0] if not _total_demand_by_ssp.empty else "none"
-    _top_demand_ha = float(_total_demand_by_ssp.iloc[0]) if not _total_demand_by_ssp.empty else 0.0
-    _top_clipped_ssp = _total_clipped_by_ssp.index[0] if not _total_clipped_by_ssp.empty else "none"
-    _top_clipped_ha = float(_total_clipped_by_ssp.iloc[0]) if not _total_clipped_by_ssp.empty else 0.0
+    _negative_interval_rows = int(
+        (chen_settlement_demand_table["delta_status"] == "negative").sum()
+    )
+    _zero_interval_rows = int(
+        (chen_settlement_demand_table["delta_status"] == "zero").sum()
+    )
+    _positive_interval_rows = int(
+        (chen_settlement_demand_table["delta_status"] == "positive").sum()
+    )
+    _manual_review_zone_count = int(
+        zone_compatibility_decisions["needs_manual_review"].sum()
+    )
+    _max_negative_delta_ha = (
+        float(negative_delta_diagnostics["clipped_negative_delta_ha"].max())
+        if not negative_delta_diagnostics.empty
+        else 0.0
+    )
+    _top_demand_ssp = (
+        _total_demand_by_ssp.index[0] if not _total_demand_by_ssp.empty else "none"
+    )
+    _top_demand_ha = (
+        float(_total_demand_by_ssp.iloc[0]) if not _total_demand_by_ssp.empty else 0.0
+    )
+    _top_clipped_ssp = (
+        _total_clipped_by_ssp.index[0] if not _total_clipped_by_ssp.empty else "none"
+    )
+    _top_clipped_ha = (
+        float(_total_clipped_by_ssp.iloc[0]) if not _total_clipped_by_ssp.empty else 0.0
+    )
 
     final_demand_readout = mo.md(
         f"""
     ### Demand Readout
 
-    - Zones with Chen trajectories: `{chen_urban_trajectory['zone'].nunique()}`
+    - Zones with Chen trajectories: `{chen_urban_trajectory["zone"].nunique()}`
     - Decadal demand rows: `{len(chen_settlement_demand_table)}`
     - Positive delta rows: `{_positive_interval_rows}`
     - Zero delta rows: `{_zero_interval_rows}`

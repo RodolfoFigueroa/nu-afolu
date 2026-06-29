@@ -12,7 +12,6 @@ with app.setup:
     import numpy as np
     import pandas as pd
     import seaborn as sns
-    import marimo as mo
 
     sns.set_theme(style="whitegrid", context="notebook")
     plt.rcParams["figure.dpi"] = 120
@@ -40,7 +39,9 @@ def _():
     if not INTERVAL_REPORT_PATH.exists():
         raise FileNotFoundError(f"Missing interval report: {INTERVAL_REPORT_PATH}")
     if not SOURCE_REPORT_PATH.exists():
-        raise FileNotFoundError(f"Missing source allocation report: {SOURCE_REPORT_PATH}")
+        raise FileNotFoundError(
+            f"Missing source allocation report: {SOURCE_REPORT_PATH}"
+        )
 
     with MANIFEST_PATH.open(encoding="utf-8") as _manifest_file:
         result_manifest = json.load(_manifest_file)
@@ -48,9 +49,15 @@ def _():
     interval_report = pd.read_parquet(INTERVAL_REPORT_PATH)
     source_report = pd.read_parquet(SOURCE_REPORT_PATH)
 
-    run_methods = tuple(result_manifest.get("methods", sorted(interval_report["method"].unique())))
-    run_ssps = tuple(result_manifest.get("ssps", sorted(interval_report["ssp"].unique())))
-    run_zone_count = int(result_manifest.get("zone_count", interval_report["zone"].nunique()))
+    run_methods = tuple(
+        result_manifest.get("methods", sorted(interval_report["method"].unique()))
+    )
+    run_ssps = tuple(
+        result_manifest.get("ssps", sorted(interval_report["ssp"].unique()))
+    )
+    run_zone_count = int(
+        result_manifest.get("zone_count", interval_report["zone"].nunique())
+    )
     run_artifact_count = int(result_manifest.get("artifact_count", 0))
     run_generated_at_utc = result_manifest.get("generated_at_utc", "unknown")
 
@@ -61,10 +68,22 @@ def _():
             {"field": "zones", "value": run_zone_count},
             {"field": "SSPs", "value": ", ".join(run_ssps)},
             {"field": "methods", "value": ", ".join(run_methods)},
-            {"field": "baseline choice", "value": result_manifest.get("baseline_choice", "unknown")},
-            {"field": "calibration choice", "value": result_manifest.get("calibration_choice", "unknown")},
-            {"field": "negative delta policy", "value": result_manifest.get("negative_delta_policy", "unknown")},
-            {"field": "interval semantics", "value": result_manifest.get("interval_semantics", "unknown")},
+            {
+                "field": "baseline choice",
+                "value": result_manifest.get("baseline_choice", "unknown"),
+            },
+            {
+                "field": "calibration choice",
+                "value": result_manifest.get("calibration_choice", "unknown"),
+            },
+            {
+                "field": "negative delta policy",
+                "value": result_manifest.get("negative_delta_policy", "unknown"),
+            },
+            {
+                "field": "interval semantics",
+                "value": result_manifest.get("interval_semantics", "unknown"),
+            },
             {"field": "scenario table sets", "value": run_artifact_count},
         ]
     )
@@ -296,14 +315,11 @@ def _():
         "forests_primary": "#2E6F40",
     }
 
-
     def format_area_ha(area_ha: float) -> str:
         return f"{area_ha:,.0f} ha" if abs(area_ha) >= 100 else f"{area_ha:,.2f} ha"
 
-
     def format_percent(value: float) -> str:
         return f"{100.0 * value:,.1f}%"
-
 
     def method_label(method: str) -> str:
         return METHOD_LABELS.get(method, method)
@@ -325,8 +341,12 @@ def _(interval_report):
     ).copy()
     demand_intervals = demand_intervals.assign(
         demand_ha=lambda _df: _df["demand_m2"] / 10_000.0,
-        clipped_negative_delta_ha=lambda _df: _df["clipped_negative_delta_m2"] / 10_000.0,
-        interval_label=lambda _df: _df["start_year"].astype(str) + "-" + _df["end_year"].astype(str),
+        clipped_negative_delta_ha=lambda _df: (
+            _df["clipped_negative_delta_m2"] / 10_000.0
+        ),
+        interval_label=lambda _df: (
+            _df["start_year"].astype(str) + "-" + _df["end_year"].astype(str)
+        ),
     )
 
     demand_by_ssp = (
@@ -344,7 +364,9 @@ def _(interval_report):
     )
 
     demand_by_interval = (
-        demand_intervals.groupby(["ssp", "start_year", "end_year", "interval_label"], dropna=False)
+        demand_intervals.groupby(
+            ["ssp", "start_year", "end_year", "interval_label"], dropna=False
+        )
         .agg(
             zones=("zone", "nunique"),
             total_demand_ha=("demand_ha", "sum"),
@@ -454,10 +476,29 @@ def _(interval_report, method_label):
             zones=("zone", "nunique"),
             intervals=("start_year", "count"),
             demand_ha=("demand_m2", lambda _series: float(_series.sum() / 10_000.0)),
-            allocated_ha=("allocated_m2", lambda _series: float(_series.sum() / 10_000.0)),
-            unresolved_ha=("unresolved_demand_m2", lambda _series: float(_series.sum() / 10_000.0)),
-            clipped_negative_delta_ha=("clipped_negative_delta_m2", lambda _series: float(_series.sum() / 10_000.0)),
-            manual_review_zones=("zone", lambda _series: int(interval_report.loc[_series.index].loc[interval_report.loc[_series.index, "needs_manual_review"], "zone"].nunique())),
+            allocated_ha=(
+                "allocated_m2",
+                lambda _series: float(_series.sum() / 10_000.0),
+            ),
+            unresolved_ha=(
+                "unresolved_demand_m2",
+                lambda _series: float(_series.sum() / 10_000.0),
+            ),
+            clipped_negative_delta_ha=(
+                "clipped_negative_delta_m2",
+                lambda _series: float(_series.sum() / 10_000.0),
+            ),
+            manual_review_zones=(
+                "zone",
+                lambda _series: int(
+                    interval_report.loc[_series.index]
+                    .loc[
+                        interval_report.loc[_series.index, "needs_manual_review"],
+                        "zone",
+                    ]
+                    .nunique()
+                ),
+            ),
         )
         .reset_index()
         .assign(method_label=lambda _df: _df["method"].map(method_label))
@@ -481,9 +522,11 @@ def _(SOURCE_CLASS_ORDER, method_label, source_report):
             method_label=lambda _df: _df["method"].map(method_label),
         )
     )
-    source_allocation_by_method["source_share"] = source_allocation_by_method.groupby("method")[
-        "allocated_m2"
-    ].transform(lambda _series: _series / _series.sum() if float(_series.sum()) else 0.0)
+    source_allocation_by_method["source_share"] = source_allocation_by_method.groupby(
+        "method"
+    )["allocated_m2"].transform(
+        lambda _series: _series / _series.sum() if float(_series.sum()) else 0.0
+    )
 
     source_allocation_by_method = source_allocation_by_method.assign(
         source_class=pd.Categorical(
@@ -495,10 +538,14 @@ def _(SOURCE_CLASS_ORDER, method_label, source_report):
     ).sort_values(["method", "source_class"])
 
     top_sources_by_method = (
-        source_allocation_by_method.sort_values(["method", "allocated_m2"], ascending=[True, False])
+        source_allocation_by_method.sort_values(
+            ["method", "allocated_m2"], ascending=[True, False]
+        )
         .groupby("method", as_index=False)
         .head(5)
-        .loc[:, ["method_label", "source_class", "allocated_ha", "source_share_percent"]]
+        .loc[
+            :, ["method_label", "source_class", "allocated_ha", "source_share_percent"]
+        ]
         .assign(
             allocated_ha=lambda _df: _df["allocated_ha"].round(1),
             source_share_percent=lambda _df: _df["source_share_percent"].round(1),
@@ -646,13 +693,16 @@ def _(
     )
 
     source_share_difference_from_historical = (
-        source_share_wide.subtract(source_share_wide["historical_shares"], axis=0) * 100.0
+        source_share_wide.subtract(source_share_wide["historical_shares"], axis=0)
+        * 100.0
     )
     source_share_difference_plot_data = source_share_difference_from_historical.loc[
         :, ["availability_constrained", "priority_ranking"]
     ].rename(columns=METHOD_LABELS)
 
-    source_share_difference_plot, _source_difference_ax = plt.subplots(figsize=(8.5, 5.5))
+    source_share_difference_plot, _source_difference_ax = plt.subplots(
+        figsize=(8.5, 5.5)
+    )
     sns.heatmap(
         source_share_difference_plot_data,
         annot=True,
@@ -665,7 +715,9 @@ def _(
     )
     _source_difference_ax.set_xlabel("Method compared with historical shares")
     _source_difference_ax.set_ylabel("Source class")
-    _source_difference_ax.set_title("How Source Shares Move Relative To Historical Shares")
+    _source_difference_ax.set_title(
+        "How Source Shares Move Relative To Historical Shares"
+    )
     source_share_difference_plot.tight_layout()
 
     source_share_difference_plot
@@ -700,9 +752,13 @@ def _(method_label, source_report):
             method_label=lambda _df: _df["method"].map(method_label),
         )
     )
-    source_allocation_by_method_ssp["source_share"] = source_allocation_by_method_ssp.groupby(
-        ["method", "ssp"]
-    )["allocated_m2"].transform(lambda _series: _series / _series.sum() if float(_series.sum()) else 0.0)
+    source_allocation_by_method_ssp["source_share"] = (
+        source_allocation_by_method_ssp.groupby(["method", "ssp"])[
+            "allocated_m2"
+        ].transform(
+            lambda _series: _series / _series.sum() if float(_series.sum()) else 0.0
+        )
+    )
 
     dominant_source_by_method_ssp = (
         source_allocation_by_method_ssp.sort_values(
@@ -715,7 +771,16 @@ def _(method_label, source_report):
             allocated_ha=lambda _df: _df["allocated_ha"].round(1),
             source_share_percent=lambda _df: (100.0 * _df["source_share"]).round(1),
         )
-        .loc[:, ["method_label", "ssp", "source_class", "allocated_ha", "source_share_percent"]]
+        .loc[
+            :,
+            [
+                "method_label",
+                "ssp",
+                "source_class",
+                "allocated_ha",
+                "source_share_percent",
+            ],
+        ]
         .rename(
             columns={
                 "method_label": "method",
@@ -746,7 +811,9 @@ def _(dominant_source_by_method_ssp, run_ssps):
     _dominant_source_ax.set_xlabel("SSP")
     _dominant_source_ax.set_ylabel("Share of allocation in dominant source (%)")
     _dominant_source_ax.set_title("Concentration In The Dominant Source Class")
-    _dominant_source_ax.legend(title="Method", bbox_to_anchor=(1.02, 1), loc="upper left")
+    _dominant_source_ax.legend(
+        title="Method", bbox_to_anchor=(1.02, 1), loc="upper left"
+    )
     dominant_source_plot.tight_layout()
 
     dominant_source_plot
@@ -755,7 +822,7 @@ def _(dominant_source_by_method_ssp, run_ssps):
 
 @app.cell(hide_code=True)
 def _():
-    mo.md(f"""
+    mo.md("""
     ## Main Interpretation
 
     The three scenarios should not be interpreted as three different Chen futures.

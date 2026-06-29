@@ -85,7 +85,6 @@ def configure_compatibility_check(Path, os, pd):
     RATIO_DENOMINATOR_FLOOR_M2 = 1_000_000.0
     WORST_ZONE_COUNT = 15
 
-
     def _read_dotenv_value(path: Path, key: str) -> str | None:
         if not path.exists():
             return None
@@ -100,7 +99,6 @@ def configure_compatibility_check(Path, os, pd):
 
         return None
 
-
     _out_path_raw = os.environ.get(OUT_PATH_KEY)
     OUT_PATH_SOURCE = "environment variable"
     if not _out_path_raw:
@@ -112,10 +110,26 @@ def configure_compatibility_check(Path, os, pd):
 
     configuration_summary = pd.DataFrame(
         [
-            {"setting": OUT_PATH_KEY, "value": str(OUT_PATH) if OUT_PATH else "not configured", "source": OUT_PATH_SOURCE},
-            {"setting": "COMPARISON_YEAR", "value": COMPARISON_YEAR, "source": "notebook default"},
-            {"setting": "CHEN_SCALE_M", "value": CHEN_SCALE_M, "source": "Chen contract"},
-            {"setting": "RATIO_DENOMINATOR_FLOOR_M2", "value": RATIO_DENOMINATOR_FLOOR_M2, "source": "one Chen-pixel guardrail"},
+            {
+                "setting": OUT_PATH_KEY,
+                "value": str(OUT_PATH) if OUT_PATH else "not configured",
+                "source": OUT_PATH_SOURCE,
+            },
+            {
+                "setting": "COMPARISON_YEAR",
+                "value": COMPARISON_YEAR,
+                "source": "notebook default",
+            },
+            {
+                "setting": "CHEN_SCALE_M",
+                "value": CHEN_SCALE_M,
+                "source": "Chen contract",
+            },
+            {
+                "setting": "RATIO_DENOMINATOR_FLOOR_M2",
+                "value": RATIO_DENOMINATOR_FLOOR_M2,
+                "source": "one Chen-pixel guardrail",
+            },
         ]
     )
 
@@ -180,7 +194,10 @@ def discover_input_zones(OUT_PATH, Path, pd, zone_partitions):
     REQUIRED_ARTIFACT_SPECS = {
         "bbox_ee": {"relative_dir": Path("bbox") / "ee", "extension": ".json"},
         "area_table": {"relative_dir": Path("area_table"), "extension": ".parquet"},
-        "transition_table": {"relative_dir": Path("transition_table"), "extension": ".nc"},
+        "transition_table": {
+            "relative_dir": Path("transition_table"),
+            "extension": ".nc",
+        },
     }
 
     partition_zone_names = tuple(zone_partitions.get_partition_keys())
@@ -207,15 +224,26 @@ def discover_input_zones(OUT_PATH, Path, pd, zone_partitions):
 
     input_zone_inventory = pd.DataFrame(_zone_rows)
     candidate_zone_names = tuple(
-        input_zone_inventory.loc[input_zone_inventory["complete_required_inputs"], "zone"]
+        input_zone_inventory.loc[
+            input_zone_inventory["complete_required_inputs"], "zone"
+        ]
     )
 
     input_zone_summary = pd.DataFrame(
         [
             {"metric": "canonical partition zones", "value": len(partition_zone_names)},
-            {"metric": "zones with required local inputs", "value": len(candidate_zone_names)},
-            {"metric": "bbox/ee files discovered", "value": len(artifact_zone_sets["bbox_ee"])},
-            {"metric": "area_table files discovered", "value": len(artifact_zone_sets["area_table"])},
+            {
+                "metric": "zones with required local inputs",
+                "value": len(candidate_zone_names),
+            },
+            {
+                "metric": "bbox/ee files discovered",
+                "value": len(artifact_zone_sets["bbox_ee"]),
+            },
+            {
+                "metric": "area_table files discovered",
+                "value": len(artifact_zone_sets["area_table"]),
+            },
         ]
     )
 
@@ -264,7 +292,8 @@ def load_glc_settlement_baseline(
                     "zone": _zone_name,
                     "glc_settlements_2020_m2": _settlement_area_m2,
                     "glc_settlements_2020_ha": _settlement_area_m2 / 10_000.0,
-                    "near_zero_glc_baseline": _settlement_area_m2 < RATIO_DENOMINATOR_FLOOR_M2,
+                    "near_zero_glc_baseline": _settlement_area_m2
+                    < RATIO_DENOMINATOR_FLOOR_M2,
                     "area_year_min": int(_normalized_area.index.min()),
                     "area_year_max": int(_normalized_area.index.max()),
                 }
@@ -279,8 +308,14 @@ def load_glc_settlement_baseline(
     baseline_summary = pd.DataFrame(
         [
             {"metric": "candidate zones", "value": len(candidate_zone_names)},
-            {"metric": "zones with usable GLC 2020 settlements", "value": len(safe_historical_zone_names)},
-            {"metric": "near-zero GLC baselines", "value": int(glc_settlement_baseline["near_zero_glc_baseline"].sum())},
+            {
+                "metric": "zones with usable GLC 2020 settlements",
+                "value": len(safe_historical_zone_names),
+            },
+            {
+                "metric": "near-zero GLC baselines",
+                "value": int(glc_settlement_baseline["near_zero_glc_baseline"].sum()),
+            },
             {"metric": "baseline load errors", "value": len(baseline_load_errors)},
         ]
     )
@@ -332,7 +367,6 @@ def prepare_chen_2020_image(
         _message = str(exc).replace("\n", " ")
         return _message[:500] + ("..." if len(_message) > 500 else "")
 
-
     try:
         ee.Initialize()
         chen_collection = ee.ImageCollection(CHEN_COLLECTION_ID)
@@ -355,7 +389,9 @@ def prepare_chen_2020_image(
                 "collection_size": chen_collection_size,
                 "selected_image_year": COMPARISON_YEAR,
                 "band_names": ", ".join(chen_2020_band_names),
-                "expected_ssp_bands_present": set(SSP_NAMES).issubset(chen_2020_band_names),
+                "expected_ssp_bands_present": set(SSP_NAMES).issubset(
+                    chen_2020_band_names
+                ),
                 "source_ready": chen_source_ready,
                 "error": chen_source_error,
             }
@@ -381,7 +417,6 @@ def define_chen_reduction_helpers(
         with path.open(encoding="utf-8") as _file:
             return ee.Geometry(ee.deserializer.decode(json.load(_file)))
 
-
     def reduce_chen_urban_area_2020(zone_name: str) -> dict[str, object]:
         _geometry = load_ee_geometry(OUT_PATH / "bbox" / "ee" / f"{zone_name}.json")
         _result = (
@@ -399,7 +434,6 @@ def define_chen_reduction_helpers(
         for _ssp in SSP_NAMES:
             _row[_ssp] = float(_result.get(_ssp) or 0.0)
         return _row
-
 
     "Chen reduction helpers defined"
     return (reduce_chen_urban_area_2020,)
@@ -423,7 +457,9 @@ def reduce_chen_2020_by_zone(
             try:
                 _chen_rows.append(reduce_chen_urban_area_2020(_zone_name))
             except Exception as _exc:  # noqa: BLE001
-                _chen_error_rows.append({"zone": _zone_name, "error": short_error(_exc)})
+                _chen_error_rows.append(
+                    {"zone": _zone_name, "error": short_error(_exc)}
+                )
     else:
         _chen_error_rows.extend(
             {"zone": _zone_name, "error": chen_source_error}
@@ -448,7 +484,12 @@ def reduce_chen_2020_by_zone(
     chen_reduction_summary = pd.DataFrame(
         [
             {"metric": "zones requested", "value": len(safe_historical_zone_names)},
-            {"metric": "zones reduced successfully", "value": chen_urban_2020_wide["zone"].nunique() if "zone" in chen_urban_2020_wide else 0},
+            {
+                "metric": "zones reduced successfully",
+                "value": chen_urban_2020_wide["zone"].nunique()
+                if "zone" in chen_urban_2020_wide
+                else 0,
+            },
             {"metric": "zone reduction errors", "value": len(chen_reduction_errors)},
             {"metric": "scenario rows", "value": len(chen_urban_2020_long)},
         ]
@@ -505,18 +546,23 @@ def compute_compatibility_metrics(
     )
 
     compatibility_metrics = compatibility_metrics.assign(
-        signed_difference_m2=lambda _df: _df["chen_urban_2020_m2"] - _df["glc_settlements_2020_m2"],
+        signed_difference_m2=lambda _df: (
+            _df["chen_urban_2020_m2"] - _df["glc_settlements_2020_m2"]
+        ),
         absolute_difference_m2=lambda _df: _df["signed_difference_m2"].abs(),
         signed_difference_ha=lambda _df: _df["signed_difference_m2"] / 10_000.0,
         absolute_difference_ha=lambda _df: _df["absolute_difference_m2"] / 10_000.0,
-        ratio_denominator_is_stable=lambda _df: _df["glc_settlements_2020_m2"] >= RATIO_DENOMINATOR_FLOOR_M2,
+        ratio_denominator_is_stable=lambda _df: (
+            _df["glc_settlements_2020_m2"] >= RATIO_DENOMINATOR_FLOOR_M2
+        ),
     )
 
     _stable_denominator = compatibility_metrics["ratio_denominator_is_stable"]
     compatibility_metrics = compatibility_metrics.assign(
         chen_to_glc_ratio=np.where(
             _stable_denominator,
-            compatibility_metrics["chen_urban_2020_m2"] / compatibility_metrics["glc_settlements_2020_m2"],
+            compatibility_metrics["chen_urban_2020_m2"]
+            / compatibility_metrics["glc_settlements_2020_m2"],
             np.nan,
         )
     )
@@ -539,9 +585,15 @@ def summarize_compatibility_by_ssp(compatibility_metrics):
         compatibility_metrics.groupby("ssp", dropna=False)
         .agg(
             zones=("zone", "nunique"),
-            ratio_unstable_rows=("ratio_denominator_is_stable", lambda _series: int((~_series).sum())),
+            ratio_unstable_rows=(
+                "ratio_denominator_is_stable",
+                lambda _series: int((~_series).sum()),
+            ),
             median_abs_difference_ha=("absolute_difference_ha", "median"),
-            p90_abs_difference_ha=("absolute_difference_ha", lambda _series: float(_series.quantile(0.9))),
+            p90_abs_difference_ha=(
+                "absolute_difference_ha",
+                lambda _series: float(_series.quantile(0.9)),
+            ),
             max_abs_difference_ha=("absolute_difference_ha", "max"),
             median_signed_difference_ha=("signed_difference_ha", "median"),
         )
@@ -554,7 +606,10 @@ def summarize_compatibility_by_ssp(compatibility_metrics):
             stable_ratio_rows=("zone", "count"),
             median_ratio=("chen_to_glc_ratio", "median"),
             median_abs_ratio_error=("absolute_ratio_error", "median"),
-            p90_abs_ratio_error=("absolute_ratio_error", lambda _series: float(_series.quantile(0.9))),
+            p90_abs_ratio_error=(
+                "absolute_ratio_error",
+                lambda _series: float(_series.quantile(0.9)),
+            ),
             max_abs_ratio_error=("absolute_ratio_error", "max"),
         )
         .reset_index()
@@ -579,7 +634,10 @@ def summarize_compatibility_by_zone(compatibility_metrics):
             median_chen_urban_2020_ha=("chen_urban_2020_ha", "median"),
             max_abs_difference_ha=("absolute_difference_ha", "max"),
             max_abs_ratio_error=("absolute_ratio_error", "max"),
-            ratio_unstable_rows=("ratio_denominator_is_stable", lambda _series: int((~_series).sum())),
+            ratio_unstable_rows=(
+                "ratio_denominator_is_stable",
+                lambda _series: int((~_series).sum()),
+            ),
         )
         .reset_index()
     )
@@ -678,7 +736,14 @@ def plot_glc_chen_scatter(compatibility_metrics, plt, sns):
             compatibility_metrics["chen_urban_2020_ha"].max(),
         )
     )
-    _scatter_ax.plot([0, _axis_max], [0, _axis_max], color="black", linewidth=1, linestyle="--", label="1:1")
+    _scatter_ax.plot(
+        [0, _axis_max],
+        [0, _axis_max],
+        color="black",
+        linewidth=1,
+        linestyle="--",
+        label="1:1",
+    )
     _scatter_ax.set_xlabel("GLC 2020 settlements (ha)")
     _scatter_ax.set_ylabel("Chen 2020 urban (ha)")
     _scatter_ax.set_title("Chen urban area versus GLC settlements by zone")
@@ -751,12 +816,24 @@ def build_compatibility_conclusion(
     mo,
     zone_compatibility_summary,
 ):
-    _successful_zone_count = int(chen_urban_2020_wide["zone"].nunique()) if "zone" in chen_urban_2020_wide else 0
-    _ratio_unstable_row_count = int((~compatibility_metrics["ratio_denominator_is_stable"]).sum())
+    _successful_zone_count = (
+        int(chen_urban_2020_wide["zone"].nunique())
+        if "zone" in chen_urban_2020_wide
+        else 0
+    )
+    _ratio_unstable_row_count = int(
+        (~compatibility_metrics["ratio_denominator_is_stable"]).sum()
+    )
     _review_zone_count = int(zone_compatibility_summary["needs_manual_review"].sum())
-    _max_median_ratio_error = float(compatibility_summary_by_ssp["median_abs_ratio_error"].max())
-    _max_p90_ratio_error = float(compatibility_summary_by_ssp["p90_abs_ratio_error"].max())
-    _max_abs_difference_ha = float(compatibility_metrics["absolute_difference_ha"].max())
+    _max_median_ratio_error = float(
+        compatibility_summary_by_ssp["median_abs_ratio_error"].max()
+    )
+    _max_p90_ratio_error = float(
+        compatibility_summary_by_ssp["p90_abs_ratio_error"].max()
+    )
+    _max_abs_difference_ha = float(
+        compatibility_metrics["absolute_difference_ha"].max()
+    )
 
     if chen_reduction_errors.empty and _successful_zone_count:
         if _review_zone_count == 0 and _max_median_ratio_error <= 0.5:
@@ -766,7 +843,9 @@ def build_compatibility_conclusion(
         else:
             _recommendation = "Do not use uncalibrated Chen areas globally; proceed only with calibration or a reviewed zone subset."
     else:
-        _recommendation = "Do not proceed until Chen reductions succeed for the required zones."
+        _recommendation = (
+            "Do not proceed until Chen reductions succeed for the required zones."
+        )
 
     compatibility_conclusion = mo.md(
         f"""

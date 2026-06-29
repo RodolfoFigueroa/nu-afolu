@@ -90,7 +90,6 @@ def configure_spatial_diagnostics(LABEL_LIST, Path, os, pd):
     HIGH_SETTLEMENT_FRACTION = 0.50
     MAX_DIAGNOSTIC_ZONES = 12
 
-
     def read_dotenv_value(path: Path, key: str) -> str | None:
         if not path.exists():
             return None
@@ -105,7 +104,6 @@ def configure_spatial_diagnostics(LABEL_LIST, Path, os, pd):
 
         return None
 
-
     _out_path_raw = os.environ.get(OUT_PATH_KEY)
     OUT_PATH_SOURCE = "environment variable"
     if not _out_path_raw:
@@ -118,11 +116,31 @@ def configure_spatial_diagnostics(LABEL_LIST, Path, os, pd):
 
     configuration_summary = pd.DataFrame(
         [
-            {"setting": OUT_PATH_KEY, "value": str(OUT_PATH) if OUT_PATH else "not configured", "source": OUT_PATH_SOURCE},
-            {"setting": "COMPARISON_YEAR", "value": COMPARISON_YEAR, "source": "notebook default"},
-            {"setting": "DIAGNOSTIC_SSP", "value": DIAGNOSTIC_SSP, "source": "representative Chen mask"},
-            {"setting": "CHEN_SCALE_M", "value": CHEN_SCALE_M, "source": "Chen contract"},
-            {"setting": "RATIO_DENOMINATOR_FLOOR_M2", "value": RATIO_DENOMINATOR_FLOOR_M2, "source": "one Chen pixel"},
+            {
+                "setting": OUT_PATH_KEY,
+                "value": str(OUT_PATH) if OUT_PATH else "not configured",
+                "source": OUT_PATH_SOURCE,
+            },
+            {
+                "setting": "COMPARISON_YEAR",
+                "value": COMPARISON_YEAR,
+                "source": "notebook default",
+            },
+            {
+                "setting": "DIAGNOSTIC_SSP",
+                "value": DIAGNOSTIC_SSP,
+                "source": "representative Chen mask",
+            },
+            {
+                "setting": "CHEN_SCALE_M",
+                "value": CHEN_SCALE_M,
+                "source": "Chen contract",
+            },
+            {
+                "setting": "RATIO_DENOMINATOR_FLOOR_M2",
+                "value": RATIO_DENOMINATOR_FLOOR_M2,
+                "source": "one Chen pixel",
+            },
         ]
     )
 
@@ -187,16 +205,30 @@ def discover_candidate_zones(OUT_PATH, Path, pd, zone_partitions):
 
     input_zone_inventory = pd.DataFrame(zone_rows)
     candidate_zone_names = tuple(
-        input_zone_inventory.loc[input_zone_inventory["complete_required_inputs"], "zone"]
+        input_zone_inventory.loc[
+            input_zone_inventory["complete_required_inputs"], "zone"
+        ]
     )
 
     input_zone_summary = pd.DataFrame(
         [
             {"metric": "canonical partition zones", "value": len(partition_zone_names)},
-            {"metric": "zones with required spatial inputs", "value": len(candidate_zone_names)},
-            {"metric": "bbox/ee files discovered", "value": len(artifact_zone_sets["bbox_ee"])},
-            {"metric": "area_raster files discovered", "value": len(artifact_zone_sets["area_raster"])},
-            {"metric": "area_table files discovered", "value": len(artifact_zone_sets["area_table"])},
+            {
+                "metric": "zones with required spatial inputs",
+                "value": len(candidate_zone_names),
+            },
+            {
+                "metric": "bbox/ee files discovered",
+                "value": len(artifact_zone_sets["bbox_ee"]),
+            },
+            {
+                "metric": "area_raster files discovered",
+                "value": len(artifact_zone_sets["area_raster"]),
+            },
+            {
+                "metric": "area_table files discovered",
+                "value": len(artifact_zone_sets["area_table"]),
+            },
         ]
     )
 
@@ -227,17 +259,22 @@ def load_glc_baseline(
                 .fillna(0.0)
             )
             if COMPARISON_YEAR not in _normalized_area.index:
-                baseline_error_rows.append({"zone": _zone_name, "error": f"missing {COMPARISON_YEAR} area row"})
+                baseline_error_rows.append(
+                    {"zone": _zone_name, "error": f"missing {COMPARISON_YEAR} area row"}
+                )
                 continue
             _zone_area_m2 = float(_normalized_area.loc[COMPARISON_YEAR].sum())
-            _settlement_area_m2 = float(_normalized_area.loc[COMPARISON_YEAR, "settlements"])
+            _settlement_area_m2 = float(
+                _normalized_area.loc[COMPARISON_YEAR, "settlements"]
+            )
             baseline_rows.append(
                 {
                     "zone": _zone_name,
                     "zone_area_table_2020_m2": _zone_area_m2,
                     "glc_settlements_2020_m2": _settlement_area_m2,
                     "glc_settlements_2020_ha": _settlement_area_m2 / 10_000.0,
-                    "ratio_denominator_is_stable": _settlement_area_m2 >= RATIO_DENOMINATOR_FLOOR_M2,
+                    "ratio_denominator_is_stable": _settlement_area_m2
+                    >= RATIO_DENOMINATOR_FLOOR_M2,
                 }
             )
         except Exception as _exc:  # noqa: BLE001
@@ -250,8 +287,14 @@ def load_glc_baseline(
     baseline_summary = pd.DataFrame(
         [
             {"metric": "candidate zones", "value": len(candidate_zone_names)},
-            {"metric": "zones with usable 2020 baseline", "value": len(baseline_zone_names)},
-            {"metric": "small-baseline zones below one Chen pixel", "value": int((~glc_baseline["ratio_denominator_is_stable"]).sum())},
+            {
+                "metric": "zones with usable 2020 baseline",
+                "value": len(baseline_zone_names),
+            },
+            {
+                "metric": "small-baseline zones below one Chen pixel",
+                "value": int((~glc_baseline["ratio_denominator_is_stable"]).sum()),
+            },
             {"metric": "baseline errors", "value": len(baseline_errors)},
         ]
     )
@@ -271,7 +314,6 @@ def prepare_chen_collection(
     def short_error(exc: Exception) -> str:
         message = str(exc).replace("\n", " ")
         return message[:500] + ("..." if len(message) > 500 else "")
-
 
     try:
         ee.Initialize()
@@ -330,7 +372,6 @@ def define_zone_level_chen_helpers(
         with path.open(encoding="utf-8") as file:
             return ee.Geometry(ee.deserializer.decode(json.load(file)))
 
-
     def reduce_chen_urban_area_2020(zone_name: str) -> dict[str, object]:
         geometry = load_ee_geometry(OUT_PATH / "bbox" / "ee" / f"{zone_name}.json")
         result = (
@@ -348,7 +389,6 @@ def define_zone_level_chen_helpers(
         for ssp_name in chen_2020_band_names:
             row[ssp_name] = float(result.get(ssp_name) or 0.0)
         return row
-
 
     "zone-level Chen helpers defined"
     return load_ee_geometry, reduce_chen_urban_area_2020
@@ -372,7 +412,9 @@ def reduce_zone_level_chen(
             try:
                 chen_area_rows.append(reduce_chen_urban_area_2020(_zone_name))
             except Exception as _exc:  # noqa: BLE001
-                chen_area_error_rows.append({"zone": _zone_name, "error": short_error(_exc)})
+                chen_area_error_rows.append(
+                    {"zone": _zone_name, "error": short_error(_exc)}
+                )
     else:
         chen_area_error_rows.extend(
             {"zone": _zone_name, "error": chen_source_error}
@@ -395,7 +437,12 @@ def reduce_zone_level_chen(
     chen_area_summary = pd.DataFrame(
         [
             {"metric": "zones requested", "value": len(baseline_zone_names)},
-            {"metric": "zones reduced successfully", "value": chen_area_wide["zone"].nunique() if "zone" in chen_area_wide else 0},
+            {
+                "metric": "zones reduced successfully",
+                "value": chen_area_wide["zone"].nunique()
+                if "zone" in chen_area_wide
+                else 0,
+            },
             {"metric": "zone reduction errors", "value": len(chen_area_errors)},
             {"metric": "scenario rows", "value": len(chen_area_long)},
         ]
@@ -423,7 +470,9 @@ def compute_zone_level_compatibility(chen_area_long, glc_baseline, np, pd):
 
     compatibility_metrics = compatibility_metrics.assign(
         chen_urban_2020_ha=lambda _df: _df["chen_urban_2020_m2"] / 10_000.0,
-        signed_difference_m2=lambda _df: _df["chen_urban_2020_m2"] - _df["glc_settlements_2020_m2"],
+        signed_difference_m2=lambda _df: (
+            _df["chen_urban_2020_m2"] - _df["glc_settlements_2020_m2"]
+        ),
     )
     compatibility_metrics = compatibility_metrics.assign(
         absolute_difference_m2=lambda _df: _df["signed_difference_m2"].abs(),
@@ -433,7 +482,8 @@ def compute_zone_level_compatibility(chen_area_long, glc_baseline, np, pd):
     compatibility_metrics = compatibility_metrics.assign(
         chen_to_glc_ratio=np.where(
             compatibility_metrics["ratio_denominator_is_stable"],
-            compatibility_metrics["chen_urban_2020_m2"] / compatibility_metrics["glc_settlements_2020_m2"],
+            compatibility_metrics["chen_urban_2020_m2"]
+            / compatibility_metrics["glc_settlements_2020_m2"],
             np.nan,
         )
     )
@@ -457,9 +507,22 @@ def compute_zone_level_compatibility(chen_area_long, glc_baseline, np, pd):
     compatibility_selection_summary = pd.DataFrame(
         [
             {"metric": "compatibility rows", "value": len(compatibility_metrics)},
-            {"metric": "zones compared", "value": compatibility_metrics["zone"].nunique()},
-            {"metric": "ratio-unstable zones", "value": int((~zone_compatibility_summary["ratio_denominator_is_stable"]).sum())},
-            {"metric": "maximum absolute mismatch ha", "value": float(zone_compatibility_summary["max_abs_difference_ha"].max())},
+            {
+                "metric": "zones compared",
+                "value": compatibility_metrics["zone"].nunique(),
+            },
+            {
+                "metric": "ratio-unstable zones",
+                "value": int(
+                    (~zone_compatibility_summary["ratio_denominator_is_stable"]).sum()
+                ),
+            },
+            {
+                "metric": "maximum absolute mismatch ha",
+                "value": float(
+                    zone_compatibility_summary["max_abs_difference_ha"].max()
+                ),
+            },
         ]
     )
 
@@ -476,13 +539,14 @@ def select_diagnostic_zones(
     selected_zone_rows = []
     _selected_zone_set: set[str] = set()
 
-
     def _add_zone(zone: str, reason: str) -> None:
-        if zone in _selected_zone_set or len(_selected_zone_set) >= MAX_DIAGNOSTIC_ZONES:
+        if (
+            zone in _selected_zone_set
+            or len(_selected_zone_set) >= MAX_DIAGNOSTIC_ZONES
+        ):
             return
         _selected_zone_set.add(zone)
         selected_zone_rows.append({"zone": zone, "selection_reason": reason})
-
 
     _worst_absolute_zones = (
         zone_compatibility_summary.sort_values("max_abs_difference_ha", ascending=False)
@@ -493,7 +557,9 @@ def select_diagnostic_zones(
         _add_zone(_zone, "worst absolute mismatch")
 
     _worst_ratio_zones = (
-        zone_compatibility_summary.loc[zone_compatibility_summary["ratio_denominator_is_stable"]]
+        zone_compatibility_summary.loc[
+            zone_compatibility_summary["ratio_denominator_is_stable"]
+        ]
         .sort_values("max_abs_ratio_error", ascending=False)
         .head(4)["zone"]
         .tolist()
@@ -501,14 +567,15 @@ def select_diagnostic_zones(
     for _zone in _worst_ratio_zones:
         _add_zone(_zone, "worst stable ratio mismatch")
 
-    _small_baseline_zones = (
-        zone_compatibility_summary.loc[~zone_compatibility_summary["ratio_denominator_is_stable"], "zone"]
-        .tolist()
-    )
+    _small_baseline_zones = zone_compatibility_summary.loc[
+        ~zone_compatibility_summary["ratio_denominator_is_stable"], "zone"
+    ].tolist()
     for _zone in _small_baseline_zones:
         _add_zone(_zone, "small GLC baseline below one Chen pixel")
 
-    _median_abs_difference = zone_compatibility_summary["max_abs_difference_ha"].median()
+    _median_abs_difference = zone_compatibility_summary[
+        "max_abs_difference_ha"
+    ].median()
     _typical_zones = (
         zone_compatibility_summary.assign(
             distance_from_median_abs=lambda _df: (
@@ -574,7 +641,6 @@ def define_spatial_reduction_helpers(
         with path.open(encoding="utf-8") as file:
             return ee.Image(ee.deserializer.decode(json.load(file)))
 
-
     def build_observed_settlement_fraction(area_raster, target_projection):
         observed_settlement_mask = (
             area_raster.select(str(COMPARISON_YEAR))
@@ -591,10 +657,8 @@ def define_spatial_reduction_helpers(
             .rename("observed_settlement_fraction")
         )
 
-
     def ratio_or_nan(numerator: float, denominator: float) -> float:
         return float(numerator / denominator) if denominator else np.nan
-
 
     "spatial reduction helpers defined"
     return build_observed_settlement_fraction, load_ee_image
@@ -616,9 +680,13 @@ def define_zone_spatial_diagnostic(
 ):
     def reduce_zone_spatial_diagnostic(zone: str) -> dict[str, object]:
         geometry = load_ee_geometry(OUT_PATH / "bbox" / "ee" / f"{zone}.json")
-        area_raster = load_ee_image(OUT_PATH / "area_raster" / f"{zone}.json").clip(geometry)
+        area_raster = load_ee_image(OUT_PATH / "area_raster" / f"{zone}.json").clip(
+            geometry
+        )
         target_projection = chen_2020_diagnostic_band.projection()
-        observed_fraction = build_observed_settlement_fraction(area_raster, target_projection).clip(geometry)
+        observed_fraction = build_observed_settlement_fraction(
+            area_raster, target_projection
+        ).clip(geometry)
 
         chen_band = chen_2020_diagnostic_band.clip(geometry)
         chen_urban_mask = chen_band.eq(ee.Number(CHEN_URBAN_VALUE))
@@ -629,12 +697,16 @@ def define_zone_spatial_diagnostic(
             [
                 pixel_area.rename("chen_grid_area_m2"),
                 pixel_area.updateMask(chen_urban_mask).rename("chen_urban_area_m2"),
-                observed_fraction.multiply(pixel_area).rename("observed_fraction_area_m2"),
+                observed_fraction.multiply(pixel_area).rename(
+                    "observed_fraction_area_m2"
+                ),
                 pixel_area.updateMask(
                     chen_urban_mask.And(observed_fraction.lt(LOW_SETTLEMENT_FRACTION))
                 ).rename("chen_urban_low_observed_area_m2"),
                 pixel_area.updateMask(
-                    chen_nonurban_mask.And(observed_fraction.gt(HIGH_SETTLEMENT_FRACTION))
+                    chen_nonurban_mask.And(
+                        observed_fraction.gt(HIGH_SETTLEMENT_FRACTION)
+                    )
                 ).rename("high_observed_nonurban_area_m2"),
                 pixel_area.updateMask(
                     observed_fraction.gt(HIGH_SETTLEMENT_FRACTION)
@@ -673,7 +745,6 @@ def define_zone_spatial_diagnostic(
             row[key] = float(value) if value is not None else np.nan
         return row
 
-
     "zone spatial diagnostic reducer defined"
     return (reduce_zone_spatial_diagnostic,)
 
@@ -692,7 +763,9 @@ def reduce_selected_spatial_diagnostics(
         try:
             spatial_diagnostic_rows.append(reduce_zone_spatial_diagnostic(_zone_name))
         except Exception as _exc:  # noqa: BLE001
-            spatial_diagnostic_error_rows.append({"zone": _zone_name, "error": short_error(_exc)})
+            spatial_diagnostic_error_rows.append(
+                {"zone": _zone_name, "error": short_error(_exc)}
+            )
 
     spatial_diagnostics_raw = pd.DataFrame(spatial_diagnostic_rows)
     spatial_diagnostic_errors = pd.DataFrame(
@@ -702,9 +775,20 @@ def reduce_selected_spatial_diagnostics(
 
     spatial_reduction_summary = pd.DataFrame(
         [
-            {"metric": "diagnostic zones requested", "value": len(diagnostic_zone_names)},
-            {"metric": "diagnostic zones reduced", "value": spatial_diagnostics_raw["zone"].nunique() if "zone" in spatial_diagnostics_raw else 0},
-            {"metric": "spatial reduction errors", "value": len(spatial_diagnostic_errors)},
+            {
+                "metric": "diagnostic zones requested",
+                "value": len(diagnostic_zone_names),
+            },
+            {
+                "metric": "diagnostic zones reduced",
+                "value": spatial_diagnostics_raw["zone"].nunique()
+                if "zone" in spatial_diagnostics_raw
+                else 0,
+            },
+            {
+                "metric": "spatial reduction errors",
+                "value": len(spatial_diagnostic_errors),
+            },
         ]
     )
 
@@ -747,17 +831,30 @@ def build_spatial_diagnostic_table(
     )
 
     spatial_diagnostics = spatial_diagnostics.assign(
-        chen_grid_equivalent_pixels=lambda _df: _df["chen_grid_area_m2"] / CHEN_PIXEL_AREA_M2,
-        chen_urban_equivalent_pixels=lambda _df: _df["chen_urban_area_m2"] / CHEN_PIXEL_AREA_M2,
-        chen_urban_low_observed_share=lambda _df: _df["chen_urban_low_observed_area_m2"]
-        / _df["chen_urban_area_m2"].replace(0, np.nan),
-        high_observed_nonurban_share=lambda _df: _df["high_observed_nonurban_area_m2"]
-        / _df["high_observed_fraction_area_m2"].replace(0, np.nan),
-        observed_fraction_area_ha=lambda _df: _df["observed_fraction_area_m2"] / 10_000.0,
-        chen_grid_to_area_table_ratio=lambda _df: _df["chen_grid_area_m2"]
-        / _df["zone_area_table_2020_m2"].replace(0, np.nan),
-        observed_fraction_to_area_table_ratio=lambda _df: _df["observed_fraction_area_m2"]
-        / _df["glc_settlements_2020_m2"].replace(0, np.nan),
+        chen_grid_equivalent_pixels=lambda _df: (
+            _df["chen_grid_area_m2"] / CHEN_PIXEL_AREA_M2
+        ),
+        chen_urban_equivalent_pixels=lambda _df: (
+            _df["chen_urban_area_m2"] / CHEN_PIXEL_AREA_M2
+        ),
+        chen_urban_low_observed_share=lambda _df: (
+            _df["chen_urban_low_observed_area_m2"]
+            / _df["chen_urban_area_m2"].replace(0, np.nan)
+        ),
+        high_observed_nonurban_share=lambda _df: (
+            _df["high_observed_nonurban_area_m2"]
+            / _df["high_observed_fraction_area_m2"].replace(0, np.nan)
+        ),
+        observed_fraction_area_ha=lambda _df: (
+            _df["observed_fraction_area_m2"] / 10_000.0
+        ),
+        chen_grid_to_area_table_ratio=lambda _df: (
+            _df["chen_grid_area_m2"] / _df["zone_area_table_2020_m2"].replace(0, np.nan)
+        ),
+        observed_fraction_to_area_table_ratio=lambda _df: (
+            _df["observed_fraction_area_m2"]
+            / _df["glc_settlements_2020_m2"].replace(0, np.nan)
+        ),
     )
 
     spatial_diagnostics
@@ -855,10 +952,18 @@ def flag_spatial_risks(pd, spatial_diagnostics):
     spatial_risk_table = spatial_diagnostics.assign(
         small_baseline_risk=lambda _df: ~_df["ratio_denominator_is_stable"],
         few_chen_urban_pixels_risk=lambda _df: _df["chen_urban_equivalent_pixels"] < 50,
-        weak_overlap_risk=lambda _df: _df["mean_observed_fraction_on_chen_urban"] < 0.25,
-        chen_urban_low_observed_dominates=lambda _df: _df["chen_urban_low_observed_share"] > 0.50,
-        high_observed_missed_risk=lambda _df: _df["high_observed_nonurban_share"] > 0.25,
-        boundary_area_risk=lambda _df: ~_df["chen_grid_to_area_table_ratio"].between(0.90, 1.10),
+        weak_overlap_risk=lambda _df: (
+            _df["mean_observed_fraction_on_chen_urban"] < 0.25
+        ),
+        chen_urban_low_observed_dominates=lambda _df: (
+            _df["chen_urban_low_observed_share"] > 0.50
+        ),
+        high_observed_missed_risk=lambda _df: (
+            _df["high_observed_nonurban_share"] > 0.25
+        ),
+        boundary_area_risk=lambda _df: (
+            ~_df["chen_grid_to_area_table_ratio"].between(0.90, 1.10)
+        ),
     )
 
     _risk_columns = [
@@ -893,11 +998,26 @@ def flag_spatial_risks(pd, spatial_diagnostics):
     spatial_risk_summary = pd.DataFrame(
         [
             {"metric": "diagnostic zones evaluated", "value": len(spatial_risk_table)},
-            {"metric": "high spatial-risk zones", "value": int(spatial_risk_table["high_spatial_risk"].sum())},
-            {"metric": "weak Chen/GLC overlap zones", "value": int(spatial_risk_table["weak_overlap_risk"].sum())},
-            {"metric": "few Chen urban-pixel zones", "value": int(spatial_risk_table["few_chen_urban_pixels_risk"].sum())},
-            {"metric": "high observed settlement missed zones", "value": int(spatial_risk_table["high_observed_missed_risk"].sum())},
-            {"metric": "boundary area-risk zones", "value": int(spatial_risk_table["boundary_area_risk"].sum())},
+            {
+                "metric": "high spatial-risk zones",
+                "value": int(spatial_risk_table["high_spatial_risk"].sum()),
+            },
+            {
+                "metric": "weak Chen/GLC overlap zones",
+                "value": int(spatial_risk_table["weak_overlap_risk"].sum()),
+            },
+            {
+                "metric": "few Chen urban-pixel zones",
+                "value": int(spatial_risk_table["few_chen_urban_pixels_risk"].sum()),
+            },
+            {
+                "metric": "high observed settlement missed zones",
+                "value": int(spatial_risk_table["high_observed_missed_risk"].sum()),
+            },
+            {
+                "metric": "boundary area-risk zones",
+                "value": int(spatial_risk_table["boundary_area_risk"].sum()),
+            },
         ]
     )
 
@@ -945,7 +1065,9 @@ def plot_observed_fraction_on_chen_urban(plt, sns, spatial_risk_table):
     _fraction_ax.set_xlabel("Mean observed settlement fraction inside Chen urban cells")
     _fraction_ax.set_ylabel("Zone")
     _fraction_ax.set_title("Observed settlement fraction on the Chen urban grid")
-    _fraction_ax.legend(title="Selection reason", bbox_to_anchor=(1.02, 1), loc="upper left")
+    _fraction_ax.legend(
+        title="Selection reason", bbox_to_anchor=(1.02, 1), loc="upper left"
+    )
     _fraction_fig.tight_layout()
 
     observed_fraction_plot = _fraction_fig
@@ -1012,7 +1134,9 @@ def build_spatial_conclusion(high_risk_spatial_zones, mo, spatial_risk_table):
     _high_risk_count = int(spatial_risk_table["high_spatial_risk"].sum())
     _weak_overlap_count = int(spatial_risk_table["weak_overlap_risk"].sum())
     _missed_observed_count = int(spatial_risk_table["high_observed_missed_risk"].sum())
-    _few_urban_pixels_count = int(spatial_risk_table["few_chen_urban_pixels_risk"].sum())
+    _few_urban_pixels_count = int(
+        spatial_risk_table["few_chen_urban_pixels_risk"].sum()
+    )
     _high_risk_names = ", ".join(high_risk_spatial_zones["zone"].head(8))
 
     if _high_risk_count:
@@ -1021,7 +1145,9 @@ def build_spatial_conclusion(high_risk_spatial_zones, mo, spatial_risk_table):
             "spatial review before allocation."
         )
     else:
-        _recommendation = "The selected diagnostics do not show a severe spatial reason to stop."
+        _recommendation = (
+            "The selected diagnostics do not show a severe spatial reason to stop."
+        )
 
     spatial_conclusion = mo.md(
         f"""
@@ -1032,7 +1158,7 @@ def build_spatial_conclusion(high_risk_spatial_zones, mo, spatial_risk_table):
     - Weak Chen/GLC overlap zones: `{_weak_overlap_count}`
     - Zones with high observed settlement fractions outside Chen urban cells: `{_missed_observed_count}`
     - Zones where fewer than 50 Chen-equivalent urban pixels drive the Chen signal: `{_few_urban_pixels_count}`
-    - High-risk examples: `{_high_risk_names or 'none'}`
+    - High-risk examples: `{_high_risk_names or "none"}`
 
     Recommendation: **{_recommendation}**
 

@@ -73,7 +73,6 @@ def configure_transition_prior_analysis(LABEL_LIST, Path, os, pd):
         "26.1.01",
     )
 
-
     def read_dotenv_value(path: Path, key: str) -> str | None:
         if not path.exists():
             return None
@@ -88,7 +87,6 @@ def configure_transition_prior_analysis(LABEL_LIST, Path, os, pd):
 
         return None
 
-
     _out_path_raw = os.environ.get(OUT_PATH_KEY)
     OUT_PATH_SOURCE = "environment variable"
     if not _out_path_raw:
@@ -97,15 +95,37 @@ def configure_transition_prior_analysis(LABEL_LIST, Path, os, pd):
 
     OUT_PATH = Path(_out_path_raw).expanduser() if _out_path_raw else None
     OUT_PATH_EXISTS = bool(OUT_PATH and OUT_PATH.exists())
-    NON_SETTLEMENT_LABELS = tuple(_label for _label in LABEL_LIST if _label != "settlements")
+    NON_SETTLEMENT_LABELS = tuple(
+        _label for _label in LABEL_LIST if _label != "settlements"
+    )
 
     configuration_summary = pd.DataFrame(
         [
-            {"setting": OUT_PATH_KEY, "value": str(OUT_PATH) if OUT_PATH else "not configured", "source": OUT_PATH_SOURCE},
-            {"setting": "COMPARISON_YEAR", "value": COMPARISON_YEAR, "source": "baseline availability year"},
-            {"setting": "MIN_ZONE_PRIOR_AREA_M2", "value": MIN_ZONE_PRIOR_AREA_M2, "source": "notebook default"},
-            {"setting": "MIN_ACTIVE_YEARS_FOR_ZONE_PRIOR", "value": MIN_ACTIVE_YEARS_FOR_ZONE_PRIOR, "source": "notebook default"},
-            {"setting": "HIGH_SPATIAL_RISK_ZONE_NAMES", "value": ", ".join(HIGH_SPATIAL_RISK_ZONE_NAMES), "source": "notebook 03 readout"},
+            {
+                "setting": OUT_PATH_KEY,
+                "value": str(OUT_PATH) if OUT_PATH else "not configured",
+                "source": OUT_PATH_SOURCE,
+            },
+            {
+                "setting": "COMPARISON_YEAR",
+                "value": COMPARISON_YEAR,
+                "source": "baseline availability year",
+            },
+            {
+                "setting": "MIN_ZONE_PRIOR_AREA_M2",
+                "value": MIN_ZONE_PRIOR_AREA_M2,
+                "source": "notebook default",
+            },
+            {
+                "setting": "MIN_ACTIVE_YEARS_FOR_ZONE_PRIOR",
+                "value": MIN_ACTIVE_YEARS_FOR_ZONE_PRIOR,
+                "source": "notebook default",
+            },
+            {
+                "setting": "HIGH_SPATIAL_RISK_ZONE_NAMES",
+                "value": ", ".join(HIGH_SPATIAL_RISK_ZONE_NAMES),
+                "source": "notebook 03 readout",
+            },
         ]
     )
 
@@ -144,7 +164,10 @@ def discover_table_zones(
 ):
     REQUIRED_TABLE_SPECS = {
         "area_table": {"relative_dir": Path("area_table"), "extension": ".parquet"},
-        "transition_table": {"relative_dir": Path("transition_table"), "extension": ".nc"},
+        "transition_table": {
+            "relative_dir": Path("transition_table"),
+            "extension": ".nc",
+        },
     }
 
     partition_zone_names = tuple(zone_partitions.get_partition_keys())
@@ -163,7 +186,9 @@ def discover_table_zones(
         _row = {"zone": _zone_name}
         for _artifact_name in REQUIRED_TABLE_SPECS:
             _row[_artifact_name] = _zone_name in table_zone_sets[_artifact_name]
-        _row["complete_table_set"] = all(_row[_artifact_name] for _artifact_name in REQUIRED_TABLE_SPECS)
+        _row["complete_table_set"] = all(
+            _row[_artifact_name] for _artifact_name in REQUIRED_TABLE_SPECS
+        )
         _zone_rows.append(_row)
 
     table_zone_inventory = pd.DataFrame(_zone_rows)
@@ -174,8 +199,16 @@ def discover_table_zones(
     table_zone_summary = pd.DataFrame(
         [
             {"metric": "canonical partition zones", "value": len(partition_zone_names)},
-            {"metric": "zones with area and transition tables", "value": len(candidate_zone_names)},
-            {"metric": "high spatial-risk zones present", "value": len(set(candidate_zone_names) & set(HIGH_SPATIAL_RISK_ZONE_NAMES))},
+            {
+                "metric": "zones with area and transition tables",
+                "value": len(candidate_zone_names),
+            },
+            {
+                "metric": "high spatial-risk zones present",
+                "value": len(
+                    set(candidate_zone_names) & set(HIGH_SPATIAL_RISK_ZONE_NAMES)
+                ),
+            },
         ]
     )
 
@@ -197,12 +230,16 @@ def load_historical_tables(OUT_PATH, candidate_zone_names, pd, xr):
             _area_table.index = _area_table.index.astype(int)
             loaded_area_tables[_zone_name] = _area_table
         except Exception as _exc:  # noqa: BLE001
-            _load_error_rows.append({"zone": _zone_name, "artifact": "area_table", "error": str(_exc)})
+            _load_error_rows.append(
+                {"zone": _zone_name, "artifact": "area_table", "error": str(_exc)}
+            )
 
         try:
             loaded_transition_tables[_zone_name] = xr.load_dataarray(_transition_path)
         except Exception as _exc:  # noqa: BLE001
-            _load_error_rows.append({"zone": _zone_name, "artifact": "transition_table", "error": str(_exc)})
+            _load_error_rows.append(
+                {"zone": _zone_name, "artifact": "transition_table", "error": str(_exc)}
+            )
 
     loaded_zone_names = tuple(
         _zone_name
@@ -214,7 +251,10 @@ def load_historical_tables(OUT_PATH, candidate_zone_names, pd, xr):
     load_summary = pd.DataFrame(
         [
             {"metric": "candidate zones", "value": len(candidate_zone_names)},
-            {"metric": "zones with both tables loaded", "value": len(loaded_zone_names)},
+            {
+                "metric": "zones with both tables loaded",
+                "value": len(loaded_zone_names),
+            },
             {"metric": "table load errors", "value": len(load_errors)},
         ]
     )
@@ -263,7 +303,6 @@ def define_transition_extractors(
         normalized = normalized.apply(pd.to_numeric, errors="coerce").fillna(0.0)
         return normalized.sort_index()
 
-
     def transition_slice_to_frame(
         zone_name: str,
         transition_table: xr.DataArray,
@@ -278,7 +317,6 @@ def define_transition_extractors(
         )
         return frame.assign(zone=zone_name).loc[:, ["zone", "year", "start", "area_m2"]]
 
-
     def build_settlement_reconciliation_rows(
         zone_name: str,
         area_table: pd.DataFrame,
@@ -287,7 +325,9 @@ def define_transition_extractors(
         area = normalize_area_table(area_table)
         area_years = {int(_year) for _year in area.index}
         rows = []
-        for _year in [int(_year) for _year in transition_table.coords["year"].to_numpy()]:
+        for _year in [
+            int(_year) for _year in transition_table.coords["year"].to_numpy()
+        ]:
             new_settlement_m2 = float(
                 transition_table.sel(
                     year=_year,
@@ -327,7 +367,6 @@ def define_transition_extractors(
                 }
             )
         return rows
-
 
     "transition extraction helpers defined"
     return (
@@ -388,9 +427,22 @@ def extract_settlement_transitions(
         [
             {"metric": "zones", "value": new_settlement_transitions["zone"].nunique()},
             {"metric": "new transition rows", "value": len(new_settlement_transitions)},
-            {"metric": "rows with positive new settlement area", "value": int(new_settlement_transitions["has_new_settlement_transition"].sum())},
-            {"metric": "total new settlement area ha", "value": float(new_settlement_transitions["area_ha"].sum())},
-            {"metric": "max net reconciliation diff m2", "value": float(settlement_reconciliation["net_change_abs_diff_m2"].max(skipna=True))},
+            {
+                "metric": "rows with positive new settlement area",
+                "value": int(
+                    new_settlement_transitions["has_new_settlement_transition"].sum()
+                ),
+            },
+            {
+                "metric": "total new settlement area ha",
+                "value": float(new_settlement_transitions["area_ha"].sum()),
+            },
+            {
+                "metric": "max net reconciliation diff m2",
+                "value": float(
+                    settlement_reconciliation["net_change_abs_diff_m2"].max(skipna=True)
+                ),
+            },
         ]
     )
 
@@ -433,13 +485,14 @@ def compute_source_share_tables(
         .reset_index()
         .rename(columns={"start": "source_class", "area_m2": "new_settlement_area_m2"})
     )
-    source_area_by_zone["zone_total_new_settlement_m2"] = source_area_by_zone.groupby("zone")[
-        "new_settlement_area_m2"
-    ].transform("sum")
+    source_area_by_zone["zone_total_new_settlement_m2"] = source_area_by_zone.groupby(
+        "zone"
+    )["new_settlement_area_m2"].transform("sum")
     source_area_by_zone = source_area_by_zone.assign(
         source_share=np.where(
             source_area_by_zone["zone_total_new_settlement_m2"] > 0,
-            source_area_by_zone["new_settlement_area_m2"] / source_area_by_zone["zone_total_new_settlement_m2"],
+            source_area_by_zone["new_settlement_area_m2"]
+            / source_area_by_zone["zone_total_new_settlement_m2"],
             0.0,
         ),
         high_spatial_risk=lambda _df: _df["zone"].isin(HIGH_SPATIAL_RISK_ZONE_NAMES),
@@ -456,13 +509,14 @@ def compute_source_share_tables(
         .reset_index()
         .rename(columns={"start": "source_class", "area_m2": "new_settlement_area_m2"})
     )
-    source_area_by_year["year_total_new_settlement_m2"] = source_area_by_year.groupby("year")[
-        "new_settlement_area_m2"
-    ].transform("sum")
+    source_area_by_year["year_total_new_settlement_m2"] = source_area_by_year.groupby(
+        "year"
+    )["new_settlement_area_m2"].transform("sum")
     source_share_by_year = source_area_by_year.assign(
         source_share=np.where(
             source_area_by_year["year_total_new_settlement_m2"] > 0,
-            source_area_by_year["new_settlement_area_m2"] / source_area_by_year["year_total_new_settlement_m2"],
+            source_area_by_year["new_settlement_area_m2"]
+            / source_area_by_year["year_total_new_settlement_m2"],
             0.0,
         )
     )
@@ -473,11 +527,15 @@ def compute_source_share_tables(
         .reset_index()
         .rename(columns={"start": "source_class", "area_m2": "new_settlement_area_m2"})
     )
-    pooled_total_new_settlement_m2 = float(pooled_source_prior["new_settlement_area_m2"].sum())
+    pooled_total_new_settlement_m2 = float(
+        pooled_source_prior["new_settlement_area_m2"].sum()
+    )
     pooled_source_prior = pooled_source_prior.assign(
-        source_share=lambda _df: _df["new_settlement_area_m2"] / pooled_total_new_settlement_m2
-        if pooled_total_new_settlement_m2
-        else 0.0,
+        source_share=lambda _df: (
+            _df["new_settlement_area_m2"] / pooled_total_new_settlement_m2
+            if pooled_total_new_settlement_m2
+            else 0.0
+        ),
         prior_scope="all_zones",
     ).sort_values("source_share", ascending=False)
 
@@ -493,12 +551,16 @@ def compute_source_share_tables(
     pooled_non_risk_total_new_settlement_m2 = float(
         pooled_source_prior_excluding_high_risk["new_settlement_area_m2"].sum()
     )
-    pooled_source_prior_excluding_high_risk = pooled_source_prior_excluding_high_risk.assign(
-        source_share=lambda _df: _df["new_settlement_area_m2"] / pooled_non_risk_total_new_settlement_m2
-        if pooled_non_risk_total_new_settlement_m2
-        else 0.0,
-        prior_scope="excluding_high_spatial_risk_zones",
-    ).sort_values("source_share", ascending=False)
+    pooled_source_prior_excluding_high_risk = (
+        pooled_source_prior_excluding_high_risk.assign(
+            source_share=lambda _df: (
+                _df["new_settlement_area_m2"] / pooled_non_risk_total_new_settlement_m2
+                if pooled_non_risk_total_new_settlement_m2
+                else 0.0
+            ),
+            prior_scope="excluding_high_spatial_risk_zones",
+        ).sort_values("source_share", ascending=False)
+    )
 
     pooled_source_prior
     return (
@@ -544,7 +606,10 @@ def compute_temporal_stability(np, source_share_by_year):
             std_annual_share=("source_share", "std"),
             min_annual_share=("source_share", "min"),
             max_annual_share=("source_share", "max"),
-            active_year_count=("new_settlement_area_m2", lambda _series: int((_series > 0).sum())),
+            active_year_count=(
+                "new_settlement_area_m2",
+                lambda _series: int((_series > 0).sum()),
+            ),
             total_new_settlement_area_m2=("new_settlement_area_m2", "sum"),
         )
         .reset_index()
@@ -596,8 +661,13 @@ def compute_source_availability(
             {
                 "zone": _zone_name,
                 "source_class": _source_class,
-                "baseline_source_area_m2": float(_area.loc[COMPARISON_YEAR, _source_class]),
-                "baseline_source_area_ha": float(_area.loc[COMPARISON_YEAR, _source_class]) / 10_000.0,
+                "baseline_source_area_m2": float(
+                    _area.loc[COMPARISON_YEAR, _source_class]
+                ),
+                "baseline_source_area_ha": float(
+                    _area.loc[COMPARISON_YEAR, _source_class]
+                )
+                / 10_000.0,
             }
             for _source_class in NON_SETTLEMENT_LABELS
         )
@@ -610,8 +680,12 @@ def compute_source_availability(
         how="left",
     )
     source_availability_with_shares = source_availability_with_shares.assign(
-        common_historical_source=lambda _df: _df["source_share"] >= COMMON_SOURCE_SHARE_THRESHOLD,
-        scarce_in_baseline=lambda _df: _df["baseline_source_area_m2"].fillna(0) < CHEN_PIXEL_AREA_M2,
+        common_historical_source=lambda _df: (
+            _df["source_share"] >= COMMON_SOURCE_SHARE_THRESHOLD
+        ),
+        scarce_in_baseline=lambda _df: (
+            _df["baseline_source_area_m2"].fillna(0) < CHEN_PIXEL_AREA_M2
+        ),
     )
 
     scarce_common_sources = source_availability_with_shares.loc[
@@ -622,9 +696,18 @@ def compute_source_availability(
 
     source_availability_summary = pd.DataFrame(
         [
-            {"metric": "zone/source availability rows", "value": len(source_availability_2020)},
-            {"metric": "scarce common source rows", "value": len(scarce_common_sources)},
-            {"metric": "zones with scarce common source", "value": scarce_common_sources["zone"].nunique()},
+            {
+                "metric": "zone/source availability rows",
+                "value": len(source_availability_2020),
+            },
+            {
+                "metric": "scarce common source rows",
+                "value": len(scarce_common_sources),
+            },
+            {
+                "metric": "zones with scarce common source",
+                "value": scarce_common_sources["zone"].nunique(),
+            },
         ]
     )
 
@@ -674,7 +757,6 @@ def define_prior_quality_helper(
             return "zone_specific_with_availability_warning"
         return "zone_specific_candidate"
 
-
     "prior quality helper defined"
     return (assign_prior_quality_status,)
 
@@ -691,14 +773,24 @@ def compute_zone_prior_quality(
         new_settlement_transitions.groupby("zone", dropna=False)
         .agg(
             total_new_settlement_m2=("area_m2", "sum"),
-            active_year_count=("area_m2", lambda _series: int((_series > 0).groupby(new_settlement_transitions.loc[_series.index, "year"]).any().sum())),
+            active_year_count=(
+                "area_m2",
+                lambda _series: int(
+                    (_series > 0)
+                    .groupby(new_settlement_transitions.loc[_series.index, "year"])
+                    .any()
+                    .sum()
+                ),
+            ),
             positive_source_year_rows=("has_new_settlement_transition", "sum"),
         )
         .reset_index()
     )
 
     dominant_source_by_zone = (
-        historical_source_share_by_zone.sort_values(["zone", "source_share"], ascending=[True, False])
+        historical_source_share_by_zone.sort_values(
+            ["zone", "source_share"], ascending=[True, False]
+        )
         .groupby("zone", as_index=False)
         .first()
         .rename(
@@ -721,8 +813,12 @@ def compute_zone_prior_quality(
         zone_prior_base.merge(dominant_source_by_zone, on="zone", how="left")
         .merge(scarce_common_count_by_zone, on="zone", how="left")
         .assign(
-            scarce_common_source_count=lambda _df: _df["scarce_common_source_count"].fillna(0).astype(int),
-            high_spatial_risk=lambda _df: _df["zone"].isin(HIGH_SPATIAL_RISK_ZONE_NAMES),
+            scarce_common_source_count=lambda _df: (
+                _df["scarce_common_source_count"].fillna(0).astype(int)
+            ),
+            high_spatial_risk=lambda _df: _df["zone"].isin(
+                HIGH_SPATIAL_RISK_ZONE_NAMES
+            ),
         )
     )
     zone_prior_quality = zone_prior_quality.assign(
@@ -819,7 +915,9 @@ def plot_temporal_source_shares(
     _temporal_ax.set_xlabel("Transition start year")
     _temporal_ax.set_ylabel("Annual source share")
     _temporal_ax.set_title("Temporal stability of top source classes")
-    _temporal_ax.legend(title="Source class", bbox_to_anchor=(1.02, 1), loc="upper left")
+    _temporal_ax.legend(
+        title="Source class", bbox_to_anchor=(1.02, 1), loc="upper left"
+    )
     _temporal_fig.tight_layout()
 
     temporal_source_share_plot = _temporal_fig
@@ -870,13 +968,15 @@ def build_prior_recommendation(
     zone_prior_quality,
 ):
     _zone_specific_count = int(
-        zone_prior_quality["prior_quality_status"].isin(
+        zone_prior_quality["prior_quality_status"]
+        .isin(
             [
                 "zone_specific_candidate",
                 "zone_specific_with_dominance_warning",
                 "zone_specific_with_availability_warning",
             ]
-        ).sum()
+        )
+        .sum()
     )
     _pooled_or_review_count = len(zone_prior_quality) - _zone_specific_count
     _top_source = str(pooled_source_prior.iloc[0]["source_class"])
@@ -888,7 +988,8 @@ def build_prior_recommendation(
     )
     _high_risk_prior_zones = ", ".join(
         zone_prior_quality.loc[
-            zone_prior_quality["prior_quality_status"] == "review_or_pooled_spatial_risk",
+            zone_prior_quality["prior_quality_status"]
+            == "review_or_pooled_spatial_risk",
             "zone",
         ].head(10)
     )
@@ -899,19 +1000,21 @@ def build_prior_recommendation(
             "pooled excluding-high-risk prior for sparse or high spatial-risk zones."
         )
     else:
-        _prior_recommendation = "Use zone-specific priors as the default, with pooled priors as fallback."
+        _prior_recommendation = (
+            "Use zone-specific priors as the default, with pooled priors as fallback."
+        )
 
     prior_recommendation = mo.md(
         f"""
     ### Prior Readout
 
-    - Total historical new settlement area: `{new_settlement_transitions['area_ha'].sum():,.1f} ha`
+    - Total historical new settlement area: `{new_settlement_transitions["area_ha"].sum():,.1f} ha`
     - Largest net settlement reconciliation difference: `{_max_net_reconciliation_diff:.6g} m2`
     - Dominant pooled source: `{_top_source}` (`{_top_source_share:.1%}`)
     - Second pooled source: `{_second_source}` (`{_second_source_share:.1%}`)
     - Zones suitable for zone-specific priors, with warnings allowed: `{_zone_specific_count}`
     - Zones needing pooled fallback or review: `{_pooled_or_review_count}`
-    - Spatial-risk prior-review zones: `{_high_risk_prior_zones or 'none'}`
+    - Spatial-risk prior-review zones: `{_high_risk_prior_zones or "none"}`
 
     Recommendation: **{_prior_recommendation}**
 

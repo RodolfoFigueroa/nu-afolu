@@ -64,7 +64,6 @@ root_module = "nu_afolu"
 
 [dependency-groups]
 dev = [
-    "dvc-azure>=3.1.1",
     "geemap>=0.37.2",
     "ipykernel>=6.31.0",
     "pandas-stubs>=3.0.0.260204",

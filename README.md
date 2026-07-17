@@ -1,4 +1,4 @@
-# Population grids paper
+# Carbon capture paper
 
 ## Data storage and tracking
 

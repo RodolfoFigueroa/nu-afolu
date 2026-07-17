@@ -1,4 +1,4 @@
 [core]
-    remote = data
-['remote "data"']
+    remote = azure_remote
+['remote "azure_remote"']
     url = azure://nu-afolu-data

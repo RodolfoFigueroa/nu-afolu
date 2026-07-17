@@ -298,10 +298,10 @@ def get_all_class_masks(
     },
     outs={
         "area_raster": dg.AssetOut(
-            io_manager_key="earthengine_manager", group_name="area_raster"
+            io_manager_key="earthengine_manager", group_name="area"
         ),
         "transition_raster": dg.AssetOut(
-            io_manager_key="earthengine_manager", group_name="transition_raster"
+            io_manager_key="earthengine_manager", group_name="transition"
         ),
     },
     partitions_def=zone_partitions,
@@ -322,18 +322,18 @@ def rasters(
 
 @dg.multi_asset(
     ins={
-        "bbox": dg.AssetIn(["bbox", "ee", "large"]),
+        "bbox": dg.AssetIn(["large", "bbox", "ee"]),
     },
     outs={
         "area_raster": dg.AssetOut(
-            key=["area_raster", "large"],
+            key=["large", "area_raster"],
             io_manager_key="earthengine_manager",
-            group_name="area_raster",
+            group_name="area_large",
         ),
         "transition_raster": dg.AssetOut(
-            key=["transition_raster", "large"],
+            key=["large", "transition_raster"],
             io_manager_key="earthengine_manager",
-            group_name="transition_raster",
+            group_name="transition_large",
         ),
     },
 )

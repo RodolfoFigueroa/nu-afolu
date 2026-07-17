@@ -60,7 +60,7 @@ def aggregate_year_bands_transition(reduced_list: list[list[dict]]) -> xr.DataAr
         "bbox": dg.AssetIn(key=["bbox", "ee"]),
     },
     partitions_def=zone_partitions,
-    group_name="transition_table",
+    group_name="transition",
 )
 def transition_table(transition_raster: ee.Image, bbox: ee.Geometry) -> xr.DataArray:
     band_imgs = generate_band_iterator(transition_raster)

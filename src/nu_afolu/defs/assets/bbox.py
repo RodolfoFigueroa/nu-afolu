@@ -65,9 +65,9 @@ def zone_bbox_ee(df_bbox: gpd.GeoDataFrame) -> ee.Geometry:
 
 
 @dg.asset(
-    key=["bbox", "ee", "large"],
+    key=["large", "bbox", "ee"],
     io_manager_key="earthengine_manager",
-    group_name="bbox",
+    group_name="bbox_large",
 )
 def large_bbox_ee() -> ee.ComputedObject:
     mpoly: ee.Geometry = (
@@ -85,10 +85,10 @@ def large_bbox_ee() -> ee.ComputedObject:
 
 
 @dg.asset(
-    key=["bbox", "shapely", "large"],
-    ins={"bbox_ee": dg.AssetIn(["bbox", "ee", "large"])},
+    key=["large", "bbox", "shapely"],
+    ins={"bbox_ee": dg.AssetIn(["large", "bbox", "ee"])},
     io_manager_key="geodataframe_manager",
-    group_name="bbox",
+    group_name="bbox_large",
 )
 def large_bbox_shapely(bbox_ee: ee.ComputedObject) -> gpd.GeoDataFrame:
     geometry_json = ee.Geometry(bbox_ee).getInfo()

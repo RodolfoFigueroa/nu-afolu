@@ -72,8 +72,8 @@ def spawn_task(
 def materialized_raster_factory(raster_prefix: str) -> dg.AssetsDefinition:
     @dg.asset(
         key=[f"{raster_prefix}_raster_materialized"],
-        ins={"raster": dg.AssetIn(key=[f"{raster_prefix}_raster", "large"])},
-        group_name=f"{raster_prefix}_raster",
+        ins={"raster": dg.AssetIn(key=["large", f"{raster_prefix}_raster"])},
+        group_name=f"{raster_prefix}_large",
     )
     def _asset(
         context: dg.AssetExecutionContext, raster: ee.Image
@@ -140,10 +140,10 @@ def reduce_all_tiles(dir_path: os.PathLike, *, vmin: int, vmax: int) -> xr.DataA
 
 
 @dg.asset(
-    key=["area_table", "large"],
+    key=["large", "area_table"],
     deps=["area_raster_materialized"],
     io_manager_key="dataframe_manager",
-    group_name="area_table",
+    group_name="area_large",
 )
 def area_table_large(path_resource: PathResource) -> pd.DataFrame:
     materialized_raster_dir = Path(path_resource.out_path) / "area_raster_materialized"
@@ -161,10 +161,10 @@ def area_table_large(path_resource: PathResource) -> pd.DataFrame:
 
 
 @dg.asset(
-    key=["transition_table", "large"],
+    key=["large", "transition_table"],
     deps=["transition_raster_materialized"],
     io_manager_key="dataarray_manager",
-    group_name="transition_table",
+    group_name="transition_large",
 )
 def transition_table_large(path_resource: PathResource) -> xr.DataArray:
     materialized_raster_dir = (

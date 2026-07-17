@@ -67,7 +67,7 @@ This restores tracked generated artifacts under `data/output`.
 
 After switching branches, the installed `post-checkout` hook runs `dvc checkout`
 to align the workspace with the checked-out DVC metadata. If the required
-generated data is not yet in your local DVC cache, run `dvc pull`.
+generated data is not yet in your local DVC cache, run `uv run dvc pull`.
 
 ### Updating generated data
 
@@ -84,7 +84,7 @@ When your work changes generated artifacts:
 
    ```sh
    git status
-   dvc status
+   uv run dvc status
    ```
 
 4. Commit the DVC metadata, not the generated files themselves:
@@ -94,9 +94,7 @@ When your work changes generated artifacts:
    git commit -m "Update generated data"
    ```
 
-   The installed `pre-commit` hook runs `dvc status` during `git commit`. If it
-   reports that generated data and DVC metadata are out of sync, update the DVC
-   metadata with `dvc add data` before committing.
+   The installed `pre-commit` hook runs `dvc status` during `git commit`.
 
 5. Push your branch as usual. The installed `pre-push` hook runs `dvc push`
    before Git publishes the branch:

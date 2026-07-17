@@ -1,0 +1,486 @@
+{
+    "0": [
+        "croplands",
+        "croplands"
+    ],
+    "1": [
+        "croplands",
+        "flooded"
+    ],
+    "2": [
+        "croplands",
+        "forests_mangroves"
+    ],
+    "3": [
+        "croplands",
+        "forests_primary"
+    ],
+    "4": [
+        "croplands",
+        "forests_secondary"
+    ],
+    "5": [
+        "croplands",
+        "grasslands"
+    ],
+    "6": [
+        "croplands",
+        "other"
+    ],
+    "7": [
+        "croplands",
+        "pastures"
+    ],
+    "8": [
+        "croplands",
+        "settlements"
+    ],
+    "9": [
+        "croplands",
+        "shrublands"
+    ],
+    "10": [
+        "croplands",
+        "wetlands"
+    ],
+    "100": [
+        "flooded",
+        "croplands"
+    ],
+    "101": [
+        "flooded",
+        "flooded"
+    ],
+    "102": [
+        "flooded",
+        "forests_mangroves"
+    ],
+    "103": [
+        "flooded",
+        "forests_primary"
+    ],
+    "104": [
+        "flooded",
+        "forests_secondary"
+    ],
+    "105": [
+        "flooded",
+        "grasslands"
+    ],
+    "106": [
+        "flooded",
+        "other"
+    ],
+    "107": [
+        "flooded",
+        "pastures"
+    ],
+    "108": [
+        "flooded",
+        "settlements"
+    ],
+    "109": [
+        "flooded",
+        "shrublands"
+    ],
+    "110": [
+        "flooded",
+        "wetlands"
+    ],
+    "200": [
+        "forests_mangroves",
+        "croplands"
+    ],
+    "201": [
+        "forests_mangroves",
+        "flooded"
+    ],
+    "202": [
+        "forests_mangroves",
+        "forests_mangroves"
+    ],
+    "203": [
+        "forests_mangroves",
+        "forests_primary"
+    ],
+    "204": [
+        "forests_mangroves",
+        "forests_secondary"
+    ],
+    "205": [
+        "forests_mangroves",
+        "grasslands"
+    ],
+    "206": [
+        "forests_mangroves",
+        "other"
+    ],
+    "207": [
+        "forests_mangroves",
+        "pastures"
+    ],
+    "208": [
+        "forests_mangroves",
+        "settlements"
+    ],
+    "209": [
+        "forests_mangroves",
+        "shrublands"
+    ],
+    "210": [
+        "forests_mangroves",
+        "wetlands"
+    ],
+    "300": [
+        "forests_primary",
+        "croplands"
+    ],
+    "301": [
+        "forests_primary",
+        "flooded"
+    ],
+    "302": [
+        "forests_primary",
+        "forests_mangroves"
+    ],
+    "303": [
+        "forests_primary",
+        "forests_primary"
+    ],
+    "304": [
+        "forests_primary",
+        "forests_secondary"
+    ],
+    "305": [
+        "forests_primary",
+        "grasslands"
+    ],
+    "306": [
+        "forests_primary",
+        "other"
+    ],
+    "307": [
+        "forests_primary",
+        "pastures"
+    ],
+    "308": [
+        "forests_primary",
+        "settlements"
+    ],
+    "309": [
+        "forests_primary",
+        "shrublands"
+    ],
+    "310": [
+        "forests_primary",
+        "wetlands"
+    ],
+    "400": [
+        "forests_secondary",
+        "croplands"
+    ],
+    "401": [
+        "forests_secondary",
+        "flooded"
+    ],
+    "402": [
+        "forests_secondary",
+        "forests_mangroves"
+    ],
+    "403": [
+        "forests_secondary",
+        "forests_primary"
+    ],
+    "404": [
+        "forests_secondary",
+        "forests_secondary"
+    ],
+    "405": [
+        "forests_secondary",
+        "grasslands"
+    ],
+    "406": [
+        "forests_secondary",
+        "other"
+    ],
+    "407": [
+        "forests_secondary",
+        "pastures"
+    ],
+    "408": [
+        "forests_secondary",
+        "settlements"
+    ],
+    "409": [
+        "forests_secondary",
+        "shrublands"
+    ],
+    "410": [
+        "forests_secondary",
+        "wetlands"
+    ],
+    "500": [
+        "grasslands",
+        "croplands"
+    ],
+    "501": [
+        "grasslands",
+        "flooded"
+    ],
+    "502": [
+        "grasslands",
+        "forests_mangroves"
+    ],
+    "503": [
+        "grasslands",
+        "forests_primary"
+    ],
+    "504": [
+        "grasslands",
+        "forests_secondary"
+    ],
+    "505": [
+        "grasslands",
+        "grasslands"
+    ],
+    "506": [
+        "grasslands",
+        "other"
+    ],
+    "507": [
+        "grasslands",
+        "pastures"
+    ],
+    "508": [
+        "grasslands",
+        "settlements"
+    ],
+    "509": [
+        "grasslands",
+        "shrublands"
+    ],
+    "510": [
+        "grasslands",
+        "wetlands"
+    ],
+    "600": [
+        "other",
+        "croplands"
+    ],
+    "601": [
+        "other",
+        "flooded"
+    ],
+    "602": [
+        "other",
+        "forests_mangroves"
+    ],
+    "603": [
+        "other",
+        "forests_primary"
+    ],
+    "604": [
+        "other",
+        "forests_secondary"
+    ],
+    "605": [
+        "other",
+        "grasslands"
+    ],
+    "606": [
+        "other",
+        "other"
+    ],
+    "607": [
+        "other",
+        "pastures"
+    ],
+    "608": [
+        "other",
+        "settlements"
+    ],
+    "609": [
+        "other",
+        "shrublands"
+    ],
+    "610": [
+        "other",
+        "wetlands"
+    ],
+    "700": [
+        "pastures",
+        "croplands"
+    ],
+    "701": [
+        "pastures",
+        "flooded"
+    ],
+    "702": [
+        "pastures",
+        "forests_mangroves"
+    ],
+    "703": [
+        "pastures",
+        "forests_primary"
+    ],
+    "704": [
+        "pastures",
+        "forests_secondary"
+    ],
+    "705": [
+        "pastures",
+        "grasslands"
+    ],
+    "706": [
+        "pastures",
+        "other"
+    ],
+    "707": [
+        "pastures",
+        "pastures"
+    ],
+    "708": [
+        "pastures",
+        "settlements"
+    ],
+    "709": [
+        "pastures",
+        "shrublands"
+    ],
+    "710": [
+        "pastures",
+        "wetlands"
+    ],
+    "800": [
+        "settlements",
+        "croplands"
+    ],
+    "801": [
+        "settlements",
+        "flooded"
+    ],
+    "802": [
+        "settlements",
+        "forests_mangroves"
+    ],
+    "803": [
+        "settlements",
+        "forests_primary"
+    ],
+    "804": [
+        "settlements",
+        "forests_secondary"
+    ],
+    "805": [
+        "settlements",
+        "grasslands"
+    ],
+    "806": [
+        "settlements",
+        "other"
+    ],
+    "807": [
+        "settlements",
+        "pastures"
+    ],
+    "808": [
+        "settlements",
+        "settlements"
+    ],
+    "809": [
+        "settlements",
+        "shrublands"
+    ],
+    "810": [
+        "settlements",
+        "wetlands"
+    ],
+    "900": [
+        "shrublands",
+        "croplands"
+    ],
+    "901": [
+        "shrublands",
+        "flooded"
+    ],
+    "902": [
+        "shrublands",
+        "forests_mangroves"
+    ],
+    "903": [
+        "shrublands",
+        "forests_primary"
+    ],
+    "904": [
+        "shrublands",
+        "forests_secondary"
+    ],
+    "905": [
+        "shrublands",
+        "grasslands"
+    ],
+    "906": [
+        "shrublands",
+        "other"
+    ],
+    "907": [
+        "shrublands",
+        "pastures"
+    ],
+    "908": [
+        "shrublands",
+        "settlements"
+    ],
+    "909": [
+        "shrublands",
+        "shrublands"
+    ],
+    "910": [
+        "shrublands",
+        "wetlands"
+    ],
+    "1000": [
+        "wetlands",
+        "croplands"
+    ],
+    "1001": [
+        "wetlands",
+        "flooded"
+    ],
+    "1002": [
+        "wetlands",
+        "forests_mangroves"
+    ],
+    "1003": [
+        "wetlands",
+        "forests_primary"
+    ],
+    "1004": [
+        "wetlands",
+        "forests_secondary"
+    ],
+    "1005": [
+        "wetlands",
+        "grasslands"
+    ],
+    "1006": [
+        "wetlands",
+        "other"
+    ],
+    "1007": [
+        "wetlands",
+        "pastures"
+    ],
+    "1008": [
+        "wetlands",
+        "settlements"
+    ],
+    "1009": [
+        "wetlands",
+        "shrublands"
+    ],
+    "1010": [
+        "wetlands",
+        "wetlands"
+    ]
+}

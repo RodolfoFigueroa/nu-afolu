@@ -11,12 +11,11 @@ from nu_afolu.constants import (
     CHEN_COLLECTION_ID,
     CHEN_URBAN_VALUE,
     CHEN_YEARS,
-    LABEL_LIST,
+    LABEL_MAP,
     SSP_NAMES,
     TRANSITION_NODATA,
 )
 
-LABEL_MAP = dict(enumerate(LABEL_LIST, start=1))
 LABEL_ID_BY_NAME = {label: idx for idx, label in LABEL_MAP.items()}
 SETTLEMENT_IDX = LABEL_ID_BY_NAME["settlements"]
 

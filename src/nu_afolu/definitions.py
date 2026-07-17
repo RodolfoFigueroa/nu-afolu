@@ -3,13 +3,13 @@ from pathlib import Path
 
 import ee
 import toml
-from dagster_components.managers import (
-    DataArrayFileManager,
+from cfc_dagster_utils.managers.dataframe import (
     DataFrameFileManager,
-    EarthEngineManager,
-    GeoDataFrameFileManager,
 )
-from dagster_components.resources import PostgresResource
+from cfc_dagster_utils.managers.earthengine import EarthEngineManager
+from cfc_dagster_utils.managers.geodataframe import GeoDataFrameFileManager
+from cfc_dagster_utils.managers.xarray import DataArrayFileManager
+from cfc_dagster_utils.resources import PostgresResource
 
 import dagster as dg
 from nu_afolu.defs.resources import AFOLUClassMapResource, LabelResource, PathResource
@@ -40,8 +40,10 @@ def generate_class_map(id_map_path: os.PathLike) -> AFOLUClassMapResource:
 def defs() -> dg.Definitions:
     main_defs = dg.load_from_defs_folder(project_root=Path(__file__).parent.parent)
 
-    class_map_path = Path(__file__).parents[2] / "id_map.toml"
-    path_resource = PathResource(out_path=dg.EnvVar("OUT_PATH"))
+    class_map_path = Path(__file__).parents[2] / "config" / "id_map.toml"
+    path_resource = PathResource(
+        out_path=str(Path(__file__).parents[2] / "data" / "output")
+    )
     extra_defs = dg.Definitions(
         resources={
             "class_map_resource": generate_class_map(class_map_path),

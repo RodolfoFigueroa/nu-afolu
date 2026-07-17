@@ -1,7 +1,7 @@
 import ee
 import pandas as pd
 import xarray as xr
-from dagster_components.partitions import zone_partitions
+from cfc_dagster_utils.partitions import zone_partitions
 
 import dagster as dg
 from nu_afolu.constants import LABEL_LIST, TRANSITION_LABEL_MAP, TRANSITION_NODATA
@@ -60,7 +60,7 @@ def aggregate_year_bands_transition(reduced_list: list[list[dict]]) -> xr.DataAr
         "bbox": dg.AssetIn(key=["bbox", "ee"]),
     },
     partitions_def=zone_partitions,
-    group_name="tables",
+    group_name="transition_table",
 )
 def transition_table(transition_raster: ee.Image, bbox: ee.Geometry) -> xr.DataArray:
     band_imgs = generate_band_iterator(transition_raster)

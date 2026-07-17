@@ -434,7 +434,7 @@ def _(demand_by_ssp, run_ssps):
     _demand_by_ssp_ax.set_xlabel("SSP")
     _demand_by_ssp_ax.set_ylabel("Settlement-growth demand (thousand ha)")
     _demand_by_ssp_ax.set_title("Total Chen-Derived Settlement Demand By SSP")
-    _demand_by_ssp_ax.bar_label(_demand_by_ssp_ax.containers[0], fmt="%.0f", padding=3)
+    _demand_by_ssp_ax.bar_label(_demand_by_ssp_ax.containers[0], fmt="%.0f", padding=3)  # ty:ignore[invalid-argument-type]
     demand_by_ssp_plot.tight_layout()
 
     demand_by_ssp_plot

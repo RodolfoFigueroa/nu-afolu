@@ -2,7 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import ee
-from dagster_components.partitions import zone_partitions
+from cfc_dagster_utils.partitions import zone_partitions
 
 import dagster as dg
 from nu_afolu.constants import (
@@ -297,11 +297,14 @@ def get_all_class_masks(
         "bbox": dg.AssetIn(["bbox", "ee"]),
     },
     outs={
-        "area_raster": dg.AssetOut(io_manager_key="earthengine_manager"),
-        "transition_raster": dg.AssetOut(io_manager_key="earthengine_manager"),
+        "area_raster": dg.AssetOut(
+            io_manager_key="earthengine_manager", group_name="area_raster"
+        ),
+        "transition_raster": dg.AssetOut(
+            io_manager_key="earthengine_manager", group_name="transition_raster"
+        ),
     },
     partitions_def=zone_partitions,
-    group_name="class_mask_graph",
 )
 def rasters(
     class_map_resource: AFOLUClassMapResource, bbox: ee.Geometry
@@ -323,13 +326,16 @@ def rasters(
     },
     outs={
         "area_raster": dg.AssetOut(
-            key=["area_raster", "large"], io_manager_key="earthengine_manager"
+            key=["area_raster", "large"],
+            io_manager_key="earthengine_manager",
+            group_name="area_raster",
         ),
         "transition_raster": dg.AssetOut(
-            key=["transition_raster", "large"], io_manager_key="earthengine_manager"
+            key=["transition_raster", "large"],
+            io_manager_key="earthengine_manager",
+            group_name="transition_raster",
         ),
     },
-    group_name="class_mask_graph",
 )
 def rasters_large(
     class_map_resource: AFOLUClassMapResource, bbox: ee.ComputedObject

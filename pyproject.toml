@@ -6,9 +6,10 @@ readme = "README.md"
 authors = [{ name = "RodolfoFigueroa", email = "4rodolfofigueroa2@gmail.com" }]
 requires-python = ">=3.11"
 dependencies = [
-    "dagster-components",
+    "cfc-dagster-utils",
     "dagster-dg-cli>=1.13.2",
     "dagster-webserver>=1.13.2",
+    "dask>=2026.7.1",
     "earthengine-api>=1.7.22",
     "geedim>=2.0.0",
     "geopandas>=1.0.1",
@@ -22,6 +23,7 @@ dependencies = [
     "seaborn>=0.13.2",
     "sisepuede",
     "toml>=0.10.2",
+    "xhistogram>=0.3.2",
 ]
 
 [project.scripts]
@@ -33,7 +35,7 @@ build-backend = "hatchling.build"
 
 [tool.uv.sources]
 sisepuede = { git = "https://github.com/RodolfoFigueroa/sisepuede" }
-dagster-components = { git = "https://github.com/RodolfoFigueroa/dagster-components" }
+cfc-dagster-utils = { git = "https://github.com/RodolfoFigueroa/cfc-dagster-utils" }
 
 [tool.ruff.lint]
 select = ["ALL"]

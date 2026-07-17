@@ -3,8 +3,8 @@ import json
 import ee
 import geopandas as gpd
 import shapely
-from dagster_components.partitions import zone_partitions
-from dagster_components.resources import PostgresResource
+from cfc_dagster_utils.partitions import zone_partitions
+from cfc_dagster_utils.resources import PostgresResource
 
 import dagster as dg
 from nu_afolu.utils import get_largest_geometry

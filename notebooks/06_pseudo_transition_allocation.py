@@ -1,59 +1,35 @@
 import marimo
 
-__generated_with = "0.23.10"
+__generated_with = "0.23.14"
 app = marimo.App(width="medium")
 
+with app.setup:
+    import json
+    import os
+    from datetime import UTC, datetime
+    from itertools import pairwise
+    from pathlib import Path
 
-@app.cell
-def _():
-    import json  # noqa: PLC0415
-    import os  # noqa: PLC0415
-    from datetime import UTC, datetime  # noqa: PLC0415
-    from itertools import pairwise  # noqa: PLC0415
-    from pathlib import Path  # noqa: PLC0415
+    import ee
+    import marimo as mo
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+    import seaborn as sns
+    import xarray as xr
+    from cfc_dagster_utils.partitions import zone_partitions
 
-    import ee  # noqa: PLC0415
-    import marimo as mo  # noqa: PLC0415
-    import matplotlib.pyplot as plt  # noqa: PLC0415
-    import numpy as np  # noqa: PLC0415
-    import pandas as pd  # noqa: PLC0415
-    import seaborn as sns  # noqa: PLC0415
-    import xarray as xr  # noqa: PLC0415
-    from dagster_components.partitions import zone_partitions  # noqa: PLC0415
-
-    from nu_afolu.constants import (  # noqa: PLC0415
+    from nu_afolu.constants import (
         CHEN_COLLECTION_ID,
         CHEN_URBAN_VALUE,
         CHEN_YEARS,
         LABEL_LIST,
         SSP_NAMES,
-    )
-
-    return (
-        CHEN_COLLECTION_ID,
-        CHEN_URBAN_VALUE,
-        CHEN_YEARS,
-        LABEL_LIST,
-        Path,
-        SSP_NAMES,
-        UTC,
-        datetime,
-        ee,
-        json,
-        mo,
-        np,
-        os,
-        pairwise,
-        pd,
-        plt,
-        sns,
-        xr,
-        zone_partitions,
     )
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     # 06 Pseudo-Transition Allocation
 
@@ -65,7 +41,7 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     ## Goal, Inputs, And Guardrails
 
@@ -82,7 +58,7 @@ def _(mo):
 
 
 @app.cell
-def _(LABEL_LIST, Path, UTC, datetime, os, pd):
+def _():
     PROJECT_ROOT = Path.cwd()
     OUT_PATH_KEY = "OUT_PATH"
     BASELINE_YEAR = 2020
@@ -233,7 +209,7 @@ def _(LABEL_LIST, Path, UTC, datetime, os, pd):
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     ## Artifact Contract Being Reproduced
 
@@ -246,7 +222,7 @@ def _(mo):
 
 
 @app.cell
-def _(OUT_PATH, Path, pd, zone_partitions):
+def _(OUT_PATH):
     REQUIRED_ARTIFACT_SPECS = {
         "bbox_ee": {"relative_dir": Path("bbox") / "ee", "extension": ".json"},
         "area_table": {"relative_dir": Path("area_table"), "extension": ".parquet"},
@@ -311,7 +287,7 @@ def _(OUT_PATH, Path, pd, zone_partitions):
 
 
 @app.cell
-def _(BASELINE_YEAR, LABEL_LIST, OUT_PATH, candidate_zone_names, np, pd, xr):
+def _(BASELINE_YEAR, OUT_PATH, candidate_zone_names):
     def normalize_area_table(area_table: pd.DataFrame) -> pd.DataFrame:
         normalized = area_table.copy()
         normalized.index = normalized.index.astype(int)
@@ -403,7 +379,7 @@ def _(BASELINE_YEAR, LABEL_LIST, OUT_PATH, candidate_zone_names, np, pd, xr):
 
 
 @app.cell
-def _(baseline_load_errors, load_errors, pd):
+def _(baseline_load_errors, load_errors):
     pd.concat(
         [
             load_errors.assign(error_type="table_load"),
@@ -417,7 +393,7 @@ def _(baseline_load_errors, load_errors, pd):
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     ## Historical Settlement-Source Priors
 
@@ -429,13 +405,7 @@ def _(mo):
 
 
 @app.cell
-def _(
-    NON_SETTLEMENT_LABELS,
-    allocation_zone_names,
-    loaded_transition_tables,
-    pd,
-    xr,
-):
+def _(NON_SETTLEMENT_LABELS, allocation_zone_names, loaded_transition_tables):
     def transition_slice_to_frame(
         zone_name: str,
         transition_table: xr.DataArray,
@@ -497,8 +467,6 @@ def _(
     NON_SETTLEMENT_LABELS,
     baseline_area_by_zone,
     new_settlement_transitions,
-    np,
-    pd,
 ):
     source_area_by_zone = (
         new_settlement_transitions.groupby(["zone", "start"], dropna=False)["area_m2"]
@@ -668,7 +636,7 @@ def _(pooled_source_prior_excluding_high_risk):
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     ## Settlement Demand From Chen
 
@@ -681,14 +649,7 @@ def _(mo):
 
 
 @app.cell
-def _(
-    CHEN_COLLECTION_ID,
-    CHEN_URBAN_VALUE,
-    CHEN_YEARS,
-    SSP_NAMES,
-    pairwise,
-    pd,
-):
+def _():
     chen_contract_summary = pd.DataFrame(
         [
             {"field": "collection", "value": CHEN_COLLECTION_ID},
@@ -718,7 +679,7 @@ def _(
 
 
 @app.cell
-def _(CHEN_COLLECTION_ID, CHEN_YEARS, SSP_NAMES, ee, pd):
+def _():
     def short_error(exc: Exception) -> str:
         message = str(exc).replace("\n", " ")
         return message[:500] + ("..." if len(message) > 500 else "")
@@ -766,17 +727,7 @@ def _(CHEN_COLLECTION_ID, CHEN_YEARS, SSP_NAMES, ee, pd):
 
 
 @app.cell
-def _(
-    CHEN_URBAN_VALUE,
-    CHEN_YEARS,
-    Path,
-    SSP_NAMES,
-    chen_collection,
-    chen_collection_size,
-    chen_source_ready,
-    ee,
-    json,
-):
+def _(chen_collection, chen_collection_size, chen_source_ready):
     def load_ee_geometry(path: Path):
         with path.open(encoding="utf-8") as file:
             return ee.Geometry(ee.deserializer.decode(json.load(file)))
@@ -817,9 +768,7 @@ def _(
     chen_area_stack,
     chen_source_error,
     chen_source_ready,
-    ee,
     load_ee_geometry,
-    pd,
     short_error,
 ):
     _trajectory_rows = []
@@ -900,8 +849,6 @@ def _(
     RATIO_DENOMINATOR_FLOOR_M2,
     baseline_area_by_zone,
     chen_urban_trajectory,
-    np,
-    pd,
 ):
     glc_settlement_baseline = baseline_area_by_zone.loc[
         :,
@@ -1075,7 +1022,6 @@ def _(
 def _(
     chen_settlement_demand_table,
     chen_urban_trajectory,
-    pd,
     zone_compatibility_decisions,
 ):
     demand_summary_by_method_input = (
@@ -1126,7 +1072,7 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     ## Allocation Methods Included
 
@@ -1143,13 +1089,11 @@ def _(mo):
 @app.cell
 def _(
     ALLOCATION_METHODS,
-    LABEL_LIST,
     NON_SETTLEMENT_LABELS,
     PRIORITY_SOURCE_ORDER,
     baseline_area_by_zone,
     chen_settlement_demand_table,
     historical_source_share_by_zone,
-    pd,
     pooled_source_prior_excluding_high_risk,
     zone_prior_quality,
 ):
@@ -1213,7 +1157,6 @@ def _(
 def _(
     NON_SETTLEMENT_LABELS,
     PRIOR_ZONE_SPECIFIC_STATUSES,
-    pd,
     pooled_source_share_series,
     zone_prior_quality_lookup,
     zone_source_share_matrix,
@@ -1245,12 +1188,10 @@ def _(
 @app.cell
 def _(
     ALLOCATION_METHODS,
-    SSP_NAMES,
     VALIDATION_TOLERANCE_M2,
     allocation_zone_names,
     build_scenario_tables,
     chen_settlement_demand_table,
-    pd,
 ):
     pseudo_area_tables = {}
     pseudo_transition_tables = {}
@@ -1319,7 +1260,7 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     ## Allocation Diagnostics
 
@@ -1354,7 +1295,7 @@ def _(EPSILON_M2, allocation_source_report):
 
 
 @app.cell
-def _(plt, sns, source_allocation_summary):
+def _(source_allocation_summary):
     sns.set_theme(style="whitegrid")
 
     _top_source_plot_data = source_allocation_summary.loc[
@@ -1382,7 +1323,7 @@ def _(plt, sns, source_allocation_summary):
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     ## Mass-Balance Checks
 
@@ -1397,14 +1338,10 @@ def _(mo):
 
 @app.cell
 def _(
-    CHEN_YEARS,
-    LABEL_LIST,
     NON_SETTLEMENT_LABELS,
     VALIDATION_TOLERANCE_M2,
     allocation_interval_report,
     allocation_source_report,
-    np,
-    pd,
     pseudo_area_tables,
     pseudo_transition_tables,
 ):
@@ -1605,7 +1542,7 @@ def _(validation_report):
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     ## Output Artifacts And Provenance
 
@@ -1628,13 +1565,10 @@ def _(
     NEGATIVE_DELTA_POLICY,
     OUTPUT_ROOT,
     SAVE_DIAGNOSTIC_ARTIFACTS,
-    SSP_NAMES,
     VALIDATION_TOLERANCE_M2,
     allocation_interval_report,
     allocation_source_report_with_checks,
     allocation_zone_names,
-    json,
-    pd,
     pseudo_area_tables,
     pseudo_transition_tables,
     validation_report,
@@ -1773,12 +1707,7 @@ def _(save_errors):
 
 
 @app.cell
-def _(
-    allocation_summary_by_method_ssp,
-    plt,
-    sns,
-    validation_summary_by_method_ssp,
-):
+def _(allocation_summary_by_method_ssp, validation_summary_by_method_ssp):
     _validation_plot_data = validation_summary_by_method_ssp.copy()
     _validation_plot_data["unresolved_demand_ha"] = _validation_plot_data[
         "unresolved_demand_ha"
@@ -1820,7 +1749,6 @@ def _(
 def _(
     allocation_interval_report,
     allocation_source_report,
-    mo,
     pseudo_area_tables,
     saved_artifact_index,
     validation_report,
@@ -1867,7 +1795,7 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _():
     mo.md(r"""
     ## Limitations And Next Step
 
@@ -1891,16 +1819,12 @@ def _(
     DEMAND_CALIBRATION_CHOICE,
     EPSILON_M2,
     INTERVAL_SEMANTICS,
-    LABEL_LIST,
     NEGATIVE_DELTA_POLICY,
     NON_SETTLEMENT_LABELS,
     VALIDATION_TOLERANCE_M2,
     allocate_interval,
     baseline_area_lookup,
-    np,
-    pd,
     priority_rank_lookup,
-    xr,
 ):
     def build_transition_matrix(
         start_area: pd.Series, allocations: pd.Series
@@ -1981,7 +1905,7 @@ def _(
                     "ssp": ssp,
                     "start_year": start_year,
                     "end_year": end_year,
-                    "interval_years": int(demand_row.interval_years),
+                    "interval_years": int(demand_row.interval_years),  # ty:ignore[invalid-argument-type]
                     "demand_m2": demand_m2,
                     "allocated_m2": allocated_total_m2,
                     "unresolved_demand_m2": max(unresolved_m2, 0.0),
@@ -2054,7 +1978,7 @@ def _(
 
 
 @app.cell
-def _(EPSILON_M2, NON_SETTLEMENT_LABELS, np, pd):
+def _(EPSILON_M2, NON_SETTLEMENT_LABELS):
     def allocate_proportionally(
         demand_m2: float,
         available_by_source: pd.Series,
@@ -2113,7 +2037,6 @@ def _(
     NON_SETTLEMENT_LABELS,
     allocate_by_priority,
     allocate_proportionally,
-    pd,
     priority_rank_lookup,
     source_prior_for_zone,
 ):
@@ -2165,7 +2088,7 @@ def _(
 
 
 @app.cell
-def _(EPSILON_M2, NON_SETTLEMENT_LABELS, PRIORITY_SOURCE_ORDER, pd):
+def _(EPSILON_M2, NON_SETTLEMENT_LABELS, PRIORITY_SOURCE_ORDER):
     def allocate_by_priority(
         demand_m2: float,
         available_by_source: pd.Series,

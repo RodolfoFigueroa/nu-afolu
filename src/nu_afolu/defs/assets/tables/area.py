@@ -1,6 +1,6 @@
 import ee
 import pandas as pd
-from dagster_components.partitions import zone_partitions
+from cfc_dagster_utils.partitions import zone_partitions
 
 import dagster as dg
 from nu_afolu.constants import LABEL_LIST
@@ -48,7 +48,7 @@ def aggregate_year_bands_area(reduced_list: list[list[dict]]) -> pd.DataFrame:
         "bbox": dg.AssetIn(key=["bbox", "ee"]),
     },
     partitions_def=zone_partitions,
-    group_name="tables",
+    group_name="area_table",
 )
 def area_table(area_raster: ee.Image, bbox: ee.Geometry) -> pd.DataFrame:
     band_imgs = generate_band_iterator(area_raster)

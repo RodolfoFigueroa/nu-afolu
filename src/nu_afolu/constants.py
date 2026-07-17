@@ -14,10 +14,11 @@ LABEL_LIST = (
     "shrublands",
     "wetlands",
 )
+LABEL_MAP = dict(enumerate(LABEL_LIST, start=1))
 
 TRANSITION_NODATA = 9_999
 
-with (Path(__file__).parents[2] / "transition_dict.json").open() as f:
+with (Path(__file__).parents[2] / "config" / "transition_dict.json").open() as f:
     TRANSITION_LABEL_MAP = {int(k): v for k, v in json.load(f).items()}
 
 

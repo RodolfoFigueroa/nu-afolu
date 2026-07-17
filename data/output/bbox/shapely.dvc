@@ -1,0 +1,6 @@
+outs:
+- md5: 770be6a00c783b4a27f86af85fc6a6c1.dir
+  size: 1192373
+  nfiles: 69
+  hash: md5
+  path: shapely

@@ -1,0 +1,6 @@
+outs:
+- md5: eea0301fcbd98cca73fde5b602f171d6.dir
+  size: 18599478
+  nfiles: 2075
+  hash: md5
+  path: chen_pseudo_tables

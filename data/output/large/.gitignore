@@ -1,0 +1,6 @@
+/area_raster.json
+/area_raster_materialized
+/transition_raster_materialized
+/area_table_large.parquet
+/transition_table_large.nc
+/transition_raster.json

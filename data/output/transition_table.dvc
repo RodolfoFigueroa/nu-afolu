@@ -1,0 +1,6 @@
+outs:
+- md5: d0e887dabd265b8dc7f560b6aa39413e.dir
+  size: 1459764
+  nfiles: 69
+  hash: md5
+  path: transition_table

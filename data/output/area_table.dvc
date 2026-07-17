@@ -1,0 +1,6 @@
+outs:
+- md5: 312cd37fb8c2444c5535fbac2898dbf7.dir
+  size: 678652
+  nfiles: 69
+  hash: md5
+  path: area_table

@@ -1,0 +1,6 @@
+outs:
+- md5: 9264af3f75ee832da5b9fd100947e3e7.dir
+  size: 3042365532
+  nfiles: 45
+  hash: md5
+  path: area_raster_materialized

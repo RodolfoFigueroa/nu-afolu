@@ -1,0 +1,5 @@
+outs:
+- md5: cf93da00c97cdde7163fceaa316ef381
+  size: 124476
+  hash: md5
+  path: area_raster.json

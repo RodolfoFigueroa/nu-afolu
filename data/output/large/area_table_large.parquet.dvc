@@ -1,0 +1,5 @@
+outs:
+- md5: 2800449c05a7f6371366cc588706e946
+  size: 10107
+  hash: md5
+  path: area_table_large.parquet

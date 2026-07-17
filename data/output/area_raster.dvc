@@ -1,0 +1,6 @@
+outs:
+- md5: eaa252a16c5699a5670e2fb26400e6f4.dir
+  size: 8916529
+  nfiles: 69
+  hash: md5
+  path: area_raster

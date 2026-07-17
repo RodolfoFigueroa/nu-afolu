@@ -1,0 +1,6 @@
+outs:
+- md5: b77c5c23635838676a91f15b2c4709a3.dir
+  size: 56887958
+  nfiles: 69
+  hash: md5
+  path: transition_raster

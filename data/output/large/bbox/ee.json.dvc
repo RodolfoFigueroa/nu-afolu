@@ -1,0 +1,5 @@
+outs:
+- md5: 63dea8a7496c64afca13052c5ff7d84e
+  size: 1575
+  hash: md5
+  path: ee.json

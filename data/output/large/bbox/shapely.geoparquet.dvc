@@ -1,0 +1,5 @@
+outs:
+- md5: 907b6988951df0eb3b5bb1485f8ce14e
+  size: 1480270
+  hash: md5
+  path: shapely.geoparquet
